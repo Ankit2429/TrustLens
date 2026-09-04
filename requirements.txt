@@ -1,0 +1,14 @@
+insightface>=0.7.3
+onnxruntime==1.18.0
+opencv-python-headless==4.10.0.84
+numpy>=1.24.4,<2.0.0
+onnx>=1.16.0
+scipy>=1.11.0
+matplotlib>=3.8.0
+tqdm>=4.66.0
+requests==2.32.3
+web3==7.2.0
+python-dotenv==1.0.1
+Pillow==10.4.0
+pytest>=8.0.0
+
