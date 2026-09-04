@@ -193,28 +193,38 @@ def assess_face_quality(img: np.ndarray, face: Any) -> dict[str, Any]:
 
 
 def detect_all_faces(
-    image_path: str,
+    image_input: Any,
     min_quality: float = 0.20,
 ) -> list[dict[str, Any]]:
     """Detect and evaluate all faces in an image with alignment and quality scoring.
 
     Args:
-        image_path: Path to the image file.
+        image_input: Path to the image file (str/Path), raw image bytes, or decoded numpy BGR image.
         min_quality: Minimum quality threshold to filter low-confidence noise.
 
     Returns:
         List of structured face dictionaries sorted by bounding box area (largest first).
 
     Raises:
-        FileNotFoundError: If image file does not exist.
+        FileNotFoundError: If image file path does not exist.
         ValueError: If image cannot be decoded.
     """
-    if not os.path.exists(image_path):
-        raise FileNotFoundError(f"Image file does not exist: {image_path}")
-
-    img = cv2.imread(image_path)
-    if img is None:
-        raise ValueError(f"Could not decode image (unsupported or corrupted format): {image_path}")
+    if isinstance(image_input, (str, os.PathLike)):
+        path_str = str(image_input)
+        if not os.path.exists(path_str):
+            raise FileNotFoundError(f"Image file does not exist: {path_str}")
+        img = cv2.imread(path_str)
+        if img is None:
+            raise ValueError(f"Could not decode image: {path_str}")
+    elif isinstance(image_input, (bytes, bytearray)):
+        nparr = np.frombuffer(image_input, np.uint8)
+        img = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
+        if img is None:
+            raise ValueError("Could not decode image from provided byte buffer")
+    elif isinstance(image_input, np.ndarray):
+        img = image_input
+    else:
+        raise TypeError(f"Unsupported image input type: {type(image_input)}")
 
     app = get_app()
     raw_faces = app.get(img)

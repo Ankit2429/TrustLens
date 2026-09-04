@@ -42,7 +42,15 @@ const contractAddressLink = document.getElementById('contractAddressLink');
 const overallPipelineStatus = document.getElementById('overallPipelineStatus');
 const logConsole = document.getElementById('logConsole');
 
-// Results elements
+// Top Result Banner Elements
+const resultTopBanner = document.getElementById('resultTopBanner');
+const rtbStatusPill = document.getElementById('rtbStatusPill');
+const sumCountVerif = document.getElementById('sumCountVerif');
+const sumCountRev = document.getElementById('sumCountRev');
+const sumCountRej = document.getElementById('sumCountRej');
+const rtbLatencyBadge = document.getElementById('rtbLatencyBadge');
+
+// Best Match Section Elements
 const bestMatchSection = document.getElementById('bestMatchSection');
 const bmThumbnail = document.getElementById('bmThumbnail');
 const bmPlatform = document.getElementById('bmPlatform');
@@ -56,11 +64,21 @@ const bmSeparationMargin = document.getElementById('bmSeparationMargin');
 const bmSeparationInterp = document.getElementById('bmSeparationInterp');
 const openSourceBtn = document.getElementById('openSourceBtn');
 
+// Other Candidates Section Elements
 const allCandidatesSection = document.getElementById('allCandidatesSection');
-const candidatesGrid = document.getElementById('candidatesGrid');
+const candidatesAccordion = document.getElementById('candidatesAccordion');
+const otherCandidatesCount = document.getElementById('otherCandidatesCount');
+const countVerif = document.getElementById('countVerif');
+const countRev = document.getElementById('countRev');
+const countRej = document.getElementById('countRej');
 const countAll = document.getElementById('countAll');
+const chipCountVerif = document.getElementById('chipCountVerif');
+const chipCountRev = document.getElementById('chipCountRev');
+const chipCountRej = document.getElementById('chipCountRej');
 const countSocial = document.getElementById('countSocial');
+const candidatesGrid = document.getElementById('candidatesGrid');
 
+// Blockchain & Proof Elements
 const blockchainSection = document.getElementById('blockchainSection');
 const dispEvidenceHash = document.getElementById('dispEvidenceHash');
 const dispEvidenceCid = document.getElementById('dispEvidenceCid');
@@ -72,6 +90,7 @@ const dispTxLink = document.getElementById('dispTxLink');
 const dispBlockStatus = document.getElementById('dispBlockStatus');
 const manifestJsonBlock = document.getElementById('manifestJsonBlock');
 
+// Actions Elements
 const actionsGrid = document.getElementById('actionsGrid');
 const verifyProofBtn = document.getElementById('verifyProofBtn');
 const verifResultArea = document.getElementById('verifResultArea');
@@ -208,6 +227,7 @@ async function handleImageSelected(file) {
   analyzeBtn.disabled = true;
 
   // Reset UI sections
+  resultTopBanner.style.display = 'none';
   bestMatchSection.style.display = 'none';
   allCandidatesSection.style.display = 'none';
   blockchainSection.style.display = 'none';
@@ -414,32 +434,31 @@ async function executePipeline() {
   overallPipelineStatus.textContent = 'Pipeline In Progress';
   overallPipelineStatus.className = 'status-summary-badge status-running-badge';
 
+  resultTopBanner.style.display = 'none';
+  bestMatchSection.style.display = 'none';
+  allCandidatesSection.style.display = 'none';
+  blockchainSection.style.display = 'none';
+  actionsGrid.style.display = 'none';
+
   resetStageFlowchart();
   setStageStatus(1, 'success');
   setStageStatus(2, 'running');
 
-  logMessage('--- STARTING TRUSTLENS TASK 3 REAL PIPELINE ---');
+  logMessage('--- STARTING TRUSTLENS TASK 3 PIPELINE ---');
 
   const formData = new FormData();
   formData.append('image', currentFile);
   formData.append('face_index', selectedFaceIndex);
-  formData.append('verified_threshold', 0.40);
-  formData.append('review_threshold', 0.30);
+  formData.append('verified_threshold', 0.45);
+  formData.append('review_threshold', 0.38);
   formData.append('min_quality', 0.20);
   formData.append('skip_blockchain', false);
 
   try {
-    // Stage update simulation while request processes
-    const timer = setInterval(() => {
-      // Gentle progressive stage update indication
-    }, 1000);
-
     const res = await fetch('/api/analyze', {
       method: 'POST',
       body: formData,
     });
-
-    clearInterval(timer);
 
     if (!res.ok) {
       const errData = await res.json();
@@ -490,8 +509,28 @@ async function executePipeline() {
 function renderPipelineResults(data) {
   const bm = data.best_match;
   const chain = data.blockchain_receipt;
+  const summary = data.search_summary || {};
+  const perf = data.performance || {};
 
-  // 1. BEST MATCH SECTION
+  const numVerif = data.verified_matches ? data.verified_matches.length : (summary.verified_count || 0);
+  const numRev = data.review_candidates ? data.review_candidates.length : (summary.review_count || 0);
+  const numRej = data.rejected_candidates ? data.rejected_candidates.length : (summary.rejected_count || 0);
+
+  // 1. TOP RESULT BANNER
+  resultTopBanner.style.display = 'block';
+  if (numVerif > 0) {
+    resultTopBanner.className = 'result-top-banner';
+    rtbStatusPill.textContent = `STATUS: VERIFIED MATCH FOUND (${numVerif} Verified)`;
+  } else {
+    resultTopBanner.className = 'result-top-banner banner-no-verif';
+    rtbStatusPill.textContent = 'STATUS: NO HIGH-CONFIDENCE MATCH';
+  }
+  sumCountVerif.textContent = numVerif;
+  sumCountRev.textContent = numRev;
+  sumCountRej.textContent = numRej;
+  rtbLatencyBadge.textContent = `⚡ ${(perf.total_latency_seconds || 0).toFixed(1)}s`;
+
+  // 2. PRIMARY SECTION: BEST MATCH
   if (bm) {
     bestMatchSection.style.display = 'block';
     bmThumbnail.src = bm.thumbnail || '';
@@ -506,21 +545,32 @@ function renderPipelineResults(data) {
     bmRank.textContent = `#${bm.rank}`;
     bmQuality.textContent = `${(bm.quality * 100).toFixed(1)}%`;
 
-    if (data.search_summary?.separation_margin !== null && data.search_summary?.separation_margin !== undefined) {
-      bmSeparationMargin.textContent = `${data.search_summary.separation_margin.toFixed(4)}`;
-      bmSeparationInterp.textContent = data.search_summary.margin_interpretation || 'Verified separation';
+    if (summary.separation_margin !== null && summary.separation_margin !== undefined) {
+      bmSeparationMargin.textContent = `${summary.separation_margin.toFixed(4)}`;
+      bmSeparationInterp.textContent = summary.margin_interpretation || 'Verified separation';
     }
 
     openSourceBtn.href = bm.link || '#';
   }
 
-  // 2. ALL DISCOVERED CANDIDATES
+  // 3. SECONDARY SECTION: OTHER SEARCH CANDIDATES (Collapsed by default)
   if (data.all_candidates && data.all_candidates.length > 0) {
     allCandidatesSection.style.display = 'block';
+    candidatesAccordion.open = false; // Collapsed by default as requested
+    otherCandidatesCount.textContent = data.all_candidates.length;
+
+    countVerif.textContent = numVerif;
+    countRev.textContent = numRev;
+    countRej.textContent = numRej;
+
+    chipCountVerif.textContent = numVerif;
+    chipCountRev.textContent = numRev;
+    chipCountRej.textContent = numRej;
+
     renderCandidateCards(data.all_candidates);
   }
 
-  // 3. BLOCKCHAIN & EVIDENCE PROOF SECTION
+  // 4. BLOCKCHAIN & EVIDENCE PROOF SECTION
   blockchainSection.style.display = 'block';
   dispEvidenceHash.textContent = data.manifest_hash;
   dispEvidenceCid.textContent = data.manifest_cid;
@@ -538,12 +588,12 @@ function renderPipelineResults(data) {
 
   manifestJsonBlock.textContent = JSON.stringify(data.manifest, null, 2);
 
-  // 4. SHOW INDEPENDENT VERIFICATION & TAMPER DEMO
+  // 5. SHOW INDEPENDENT VERIFICATION & TAMPER DEMO
   actionsGrid.style.display = 'grid';
   verifResultArea.style.display = 'none';
   tamperResultArea.style.display = 'none';
 
-  logMessage('Evidence manifest generated & anchored to Polygon Amoy successfully.', 'success');
+  logMessage(`Verification completed in ${(perf.total_latency_seconds || 0).toFixed(1)}s: 1 primary verified match, ${numRej} unrelated candidates rejected.`, 'success');
 }
 
 function renderCandidateCards(candidates) {
@@ -555,11 +605,13 @@ function renderCandidateCards(candidates) {
 
   candidates.forEach(cand => {
     const card = document.createElement('div');
-    card.className = 'candidate-card';
+    const decisionLower = (cand.decision || 'rejected').toLowerCase();
+    card.className = `candidate-card cand-card-${decisionLower}`;
     card.dataset.platformType = cand.platform === 'General Web' ? 'WEB' : 'SOCIAL';
+    card.dataset.decision = cand.decision;
 
     const simPct = (cand.similarity * 100).toFixed(1);
-    const decClass = `decision-${cand.decision.toLowerCase()}`;
+    const decClass = `decision-${decisionLower}`;
 
     card.innerHTML = `
       <div class="cand-thumb-wrap">
@@ -590,6 +642,12 @@ function filterCandidates(filter) {
       card.style.display = 'flex';
     } else if (filter === 'SOCIAL') {
       card.style.display = card.dataset.platformType === 'SOCIAL' ? 'flex' : 'none';
+    } else if (filter === 'VERIFIED') {
+      card.style.display = card.dataset.decision === 'VERIFIED' ? 'flex' : 'none';
+    } else if (filter === 'REVIEW') {
+      card.style.display = card.dataset.decision === 'REVIEW' ? 'flex' : 'none';
+    } else if (filter === 'REJECTED') {
+      card.style.display = card.dataset.decision === 'REJECTED' ? 'flex' : 'none';
     }
   });
 }

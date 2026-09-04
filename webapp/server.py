@@ -7,6 +7,7 @@ import copy
 import os
 import sys
 import tempfile
+import time
 from pathlib import Path
 from typing import Any, Optional
 
@@ -44,11 +45,18 @@ from pipeline.fingerprint import (
 )
 from pipeline.ipfs_store import pin_file, pin_json, gateway_url, fetch_json
 from pipeline.chain import register_proof, get_proof, get_web3_and_contract
+from pipeline.main import (
+    DEFAULT_VERIFIED_THRESHOLD,
+    DEFAULT_REVIEW_THRESHOLD,
+    DEFAULT_MIN_QUALITY,
+    classify_decision,
+    evaluate_candidates_concurrently,
+)
 
 app = FastAPI(
     title="TrustLens",
     description="Face Identification & Blockchain Verification Web API",
-    version="1.1.0",
+    version="1.2.0",
 )
 
 app.add_middleware(
@@ -97,6 +105,11 @@ def get_health():
         "latest_block": block,
         "contract_address": contract_addr,
         "explorer_url": f"https://amoy.polygonscan.com/address/{contract_addr}" if contract_addr else "",
+        "thresholds": {
+            "verified_threshold": DEFAULT_VERIFIED_THRESHOLD,
+            "review_threshold": DEFAULT_REVIEW_THRESHOLD,
+            "min_quality": DEFAULT_MIN_QUALITY,
+        },
         "services": {
             "serpapi": has_serp,
             "pinata_ipfs": has_pinata,
@@ -124,13 +137,8 @@ async def detect_faces_endpoint(image: UploadFile = File(...)):
     if len(contents) > 15 * 1024 * 1024:
         raise HTTPException(status_code=400, detail="Image exceeds 15 MB limit")
 
-    tmp_path = None
     try:
-        with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as f:
-            f.write(contents)
-            tmp_path = f.name
-
-        faces = detect_all_faces(tmp_path, min_quality=0.10)
+        faces = detect_all_faces(contents, min_quality=0.10)
         if not faces:
             return {"face_detected": False, "face_count": 0, "faces": []}
 
@@ -152,24 +160,20 @@ async def detect_faces_endpoint(image: UploadFile = File(...)):
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
-    finally:
-        if tmp_path and os.path.exists(tmp_path):
-            try:
-                os.remove(tmp_path)
-            except Exception:
-                pass
 
 
 @app.post("/api/analyze")
 async def analyze_and_execute_pipeline(
     image: UploadFile = File(...),
     face_index: int = Form(0),
-    verified_threshold: float = Form(0.40),
-    review_threshold: float = Form(0.30),
-    min_quality: float = Form(0.20),
+    verified_threshold: float = Form(DEFAULT_VERIFIED_THRESHOLD),
+    review_threshold: float = Form(DEFAULT_REVIEW_THRESHOLD),
+    min_quality: float = Form(DEFAULT_MIN_QUALITY),
     skip_blockchain: bool = Form(False),
 ):
-    """Execute the full real 9-stage TrustLens pipeline for an uploaded face image."""
+    """Execute the full real 9-stage TrustLens pipeline with in-memory candidate concurrency."""
+    t_start = time.perf_counter()
+    timings: dict[str, float] = {}
     suffix = Path(image.filename).suffix or ".jpg"
     contents = await image.read()
     if len(contents) > 15 * 1024 * 1024:
@@ -179,109 +183,107 @@ async def analyze_and_execute_pipeline(
     stages_log: list[dict[str, Any]] = []
 
     try:
+        # [1/9] Face Analysis
+        t0 = time.perf_counter()
+        stages_log.append({"stage": 1, "name": "Face Detection & Quality Assessment", "status": "RUNNING"})
         with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as f:
             f.write(contents)
             tmp_path = f.name
 
-        # [1/9] Face Analysis
-        stages_log.append({"stage": 1, "name": "Face Detection & Quality Assessment", "status": "RUNNING"})
         query_analysis = analyze_face(tmp_path, face_index=face_index, min_quality=min_quality)
         query_emb = query_analysis["normalized_embedding"]
         query_face_meta = query_analysis["metadata"]
+        timings["1_face_detect"] = time.perf_counter() - t0
         stages_log[-1]["status"] = "SUCCESS"
-        stages_log[-1]["detail"] = f"Detected {query_analysis['face_count']} face(s). Selected #{face_index} (Quality: {query_analysis['quality_score']:.2f})"
+        stages_log[-1]["detail"] = f"Detected {query_analysis['face_count']} face(s). Selected #{face_index} (Quality: {query_analysis['quality_score']:.2f}) [{timings['1_face_detect']:.2f}s]"
 
         # [2/9] Embedding Fingerprint
+        t0 = time.perf_counter()
         stages_log.append({"stage": 2, "name": "ArcFace 512-d Embedding Hashing", "status": "SUCCESS", "detail": f"Embedding SHA-256: {query_analysis['embedding_hash'][:16]}..."})
+        timings["2_embedding"] = time.perf_counter() - t0
 
         # [3/9] Pin Query Image
+        t0 = time.perf_counter()
         stages_log.append({"stage": 3, "name": "IPFS Query Image Pinning", "status": "RUNNING"})
         query_cid = pin_file(tmp_path, name=f"trustlens_query_{os.path.basename(image.filename or 'face.jpg')}")
         public_url = gateway_url(query_cid)
+        timings["3_ipfs_query"] = time.perf_counter() - t0
         stages_log[-1]["status"] = "SUCCESS"
-        stages_log[-1]["detail"] = f"Pinned to IPFS CID: {query_cid}"
+        stages_log[-1]["detail"] = f"Pinned to IPFS CID: {query_cid} [{timings['3_ipfs_query']:.2f}s]"
 
         # [4/9] Multi-Source Search
+        t0 = time.perf_counter()
         stages_log.append({"stage": 4, "name": "Multi-Source Visual Search", "status": "RUNNING"})
         candidates = reverse_image_search(public_url)
+        timings["4_search_api"] = time.perf_counter() - t0
         stages_log[-1]["status"] = "SUCCESS"
-        stages_log[-1]["detail"] = f"Discovered {len(candidates)} candidates across web & social platforms"
+        stages_log[-1]["detail"] = f"Discovered {len(candidates)} candidates across web & social platforms [{timings['4_search_api']:.2f}s]"
 
-        # [5/9] Candidate Multi-Face Verification
+        # [5/9] Candidate Multi-Face Verification (Concurrent In-Memory)
+        t0 = time.perf_counter()
         stages_log.append({"stage": 5, "name": "Independent Candidate Multi-Face Verification", "status": "RUNNING"})
+        
+        raw_eval_results, usable_count = evaluate_candidates_concurrently(
+            candidates=candidates,
+            query_emb=query_emb,
+            verified_threshold=verified_threshold,
+            review_threshold=review_threshold,
+            max_workers=8,
+        )
+
         evaluated_candidates = []
-        usable_count = 0
-        for idx, c in enumerate(candidates, start=1):
-            thumb = c.get("thumbnail")
-            if not thumb:
-                continue
-            cand_tmp = None
-            try:
-                import requests
-                r = requests.get(thumb, timeout=12)
-                if r.status_code == 200:
-                    usable_count += 1
-                    with tempfile.NamedTemporaryFile(delete=False, suffix=".jpg") as tf:
-                        tf.write(r.content)
-                        cand_tmp = tf.name
-
-                    cand_faces = detect_all_faces(cand_tmp, min_quality=0.15)
-                    if cand_faces:
-                        group_eval = compare_group_faces(query_emb, cand_faces)
-                        best_sim = group_eval["best_similarity"]
-                        best_cand_face = group_eval["best_candidate_face"]
-                        cand_q = best_cand_face["quality"]["overall_quality"]
-
-                        decision = "VERIFIED" if best_sim >= verified_threshold else ("REVIEW" if best_sim >= review_threshold else "REJECTED")
-
-                        evaluated_candidates.append({
-                            "rank": c.get("search_rank", idx),
-                            "platform": c.get("platform", "General Web"),
-                            "title": c.get("title", ""),
-                            "link": c.get("link", ""),
-                            "domain": c.get("domain", ""),
-                            "thumbnail": thumb,
-                            "thumbnail_sha256": sha256_of_bytes(r.content),
-                            "similarity": round(best_sim, 4),
-                            "quality": round(cand_q, 4),
-                            "det_confidence": round(float(best_cand_face["det_score"]), 4),
-                            "face_count": group_eval["evaluated_face_count"],
-                            "decision": decision,
-                        })
-            except Exception:
-                pass
-            finally:
-                if cand_tmp and os.path.exists(cand_tmp):
-                    try:
-                        os.remove(cand_tmp)
-                    except Exception:
-                        pass
+        for r in raw_eval_results:
+            c = r["candidate"]
+            evaluated_candidates.append({
+                "rank": c.get("search_rank", 1),
+                "platform": c.get("platform", "General Web"),
+                "title": c.get("title", ""),
+                "link": c.get("link", ""),
+                "domain": c.get("domain", ""),
+                "thumbnail": c.get("thumbnail"),
+                "thumbnail_sha256": r.get("thumbnail_sha256"),
+                "similarity": round(float(r["similarity"]), 4),
+                "quality": round(float(r["image_quality"]), 4),
+                "det_confidence": round(float(r["det_confidence"]), 4),
+                "face_count": r["face_count"],
+                "best_face_index": r.get("best_face_index", 0),
+                "decision": r["decision"],
+                "reason": r["reason"],
+            })
 
         decision_prio = {"VERIFIED": 3, "REVIEW": 2, "REJECTED": 1}
         evaluated_candidates.sort(
-            key=lambda x: (decision_prio.get(x["decision"], 0), x["similarity"], x["quality"]),
+            key=lambda x: (decision_prio.get(x["decision"], 0), x["similarity"], x["quality"], -x.get("rank", 999)),
             reverse=True,
         )
+        timings["5_cand_eval"] = time.perf_counter() - t0
         stages_log[-1]["status"] = "SUCCESS"
-        stages_log[-1]["detail"] = f"Independently evaluated {len(evaluated_candidates)} candidate thumbnail faces"
+        stages_log[-1]["detail"] = f"Evaluated {len(evaluated_candidates)} candidate faces across {usable_count} images in {timings['5_cand_eval']:.2f}s"
 
         # [6/9] Candidate Ranking & Separation Margin
+        t0 = time.perf_counter()
         stages_log.append({"stage": 6, "name": "Candidate Ranking & Separation Margin", "status": "RUNNING"})
-        verified_sims = [x["similarity"] for x in evaluated_candidates if x["decision"] == "VERIFIED"]
-        rejected_sims = [x["similarity"] for x in evaluated_candidates if x["decision"] in ("REVIEW", "REJECTED")]
+        verified_matches = [x for x in evaluated_candidates if x["decision"] == "VERIFIED"]
+        review_candidates = [x for x in evaluated_candidates if x["decision"] == "REVIEW"]
+        rejected_candidates = [x for x in evaluated_candidates if x["decision"] == "REJECTED"]
+
+        verified_sims = [x["similarity"] for x in verified_matches]
+        rejected_sims = [x["similarity"] for x in (review_candidates + rejected_candidates)]
         margin_info = calculate_separation_margin(verified_sims, rejected_sims)
         sep_margin = margin_info["separation_margin"]
+        timings["6_ranking"] = time.perf_counter() - t0
         stages_log[-1]["status"] = "SUCCESS"
-        stages_log[-1]["detail"] = f"Separation Margin: {sep_margin if sep_margin is not None else 'N/A'}"
+        stages_log[-1]["detail"] = f"Separation Margin: {sep_margin if sep_margin is not None else 'N/A'} (Verified: {len(verified_matches)}, Review: {len(review_candidates)}, Rejected: {len(rejected_candidates)})"
 
         # Select primary match (prioritize verified social platforms if found)
-        social_ver = [x for x in evaluated_candidates if x["platform"] != "General Web" and x["decision"] == "VERIFIED"]
-        best_match = social_ver[0] if social_ver else (evaluated_candidates[0] if evaluated_candidates else None)
+        social_ver = [x for x in verified_matches if x["platform"] != "General Web"]
+        best_match = social_ver[0] if social_ver else (verified_matches[0] if verified_matches else (evaluated_candidates[0] if evaluated_candidates else None))
 
         if not best_match:
             raise HTTPException(status_code=404, detail="No faces detected in discovered candidate images")
 
         # [7/9] Evidence Manifest Generation (RFC-8785)
+        t0 = time.perf_counter()
         stages_log.append({"stage": 7, "name": "Canonical Evidence Manifest (RFC-8785)", "status": "RUNNING"})
         matched_candidate_dict = {
             "link": best_match["link"],
@@ -311,25 +313,32 @@ async def analyze_and_execute_pipeline(
             margin_interpretation=margin_info.get("margin_interpretation"),
             thumbnail_sha256=best_match.get("thumbnail_sha256"),
         )
+        timings["7_manifest"] = time.perf_counter() - t0
         stages_log[-1]["status"] = "SUCCESS"
         stages_log[-1]["detail"] = f"Canonical SHA-256: {manifest_hash}"
 
         # [8/9] IPFS Manifest Pinning
+        t0 = time.perf_counter()
         stages_log.append({"stage": 8, "name": "Evidence IPFS Storage", "status": "RUNNING"})
         manifest_cid = pin_json(manifest, name=f"evidence_{manifest_hash[:12]}")
+        timings["8_ipfs_manifest"] = time.perf_counter() - t0
         stages_log[-1]["status"] = "SUCCESS"
-        stages_log[-1]["detail"] = f"Pinned Manifest CID: {manifest_cid}"
+        stages_log[-1]["detail"] = f"Pinned Manifest CID: {manifest_cid} [{timings['8_ipfs_manifest']:.2f}s]"
 
         # [9/9] Polygon Amoy Proof Anchoring
+        t0 = time.perf_counter()
         stages_log.append({"stage": 9, "name": "Polygon Amoy Proof Anchoring", "status": "RUNNING"})
         chain_receipt = None
         if not skip_blockchain:
             chain_receipt = register_proof(manifest_hash, manifest_cid)
+            timings["9_blockchain"] = time.perf_counter() - t0
             stages_log[-1]["status"] = "SUCCESS"
-            stages_log[-1]["detail"] = f"Tx Hash: {chain_receipt['tx_hash'][:16]}... (Block #{chain_receipt['block']})"
+            stages_log[-1]["detail"] = f"Tx Hash: {chain_receipt['tx_hash'][:16]}... (Block #{chain_receipt['block']}) [{timings['9_blockchain']:.2f}s]"
         else:
             stages_log[-1]["status"] = "SKIPPED"
             stages_log[-1]["detail"] = "Offline mode requested (dry run)"
+
+        total_latency = time.perf_counter() - t_start
 
         return {
             "success": True,
@@ -347,17 +356,25 @@ async def analyze_and_execute_pipeline(
             "search_summary": {
                 "total_discovered": len(candidates),
                 "usable_evaluated": usable_count,
-                "verified_count": len(verified_sims),
-                "rejected_count": len(rejected_sims),
+                "verified_count": len(verified_matches),
+                "review_count": len(review_candidates),
+                "rejected_count": len(rejected_candidates),
                 "separation_margin": sep_margin,
                 "margin_interpretation": margin_info.get("margin_interpretation"),
             },
             "best_match": best_match,
-            "all_candidates": evaluated_candidates[:30],
+            "verified_matches": verified_matches,
+            "review_candidates": review_candidates,
+            "rejected_candidates": rejected_candidates,
+            "all_candidates": evaluated_candidates,
             "manifest": manifest,
             "manifest_hash": manifest_hash,
             "manifest_cid": manifest_cid,
             "blockchain_receipt": chain_receipt,
+            "performance": {
+                "total_latency_seconds": round(total_latency, 2),
+                "timings_seconds": {k: round(v, 3) for k, v in timings.items()},
+            },
         }
     except Exception as e:
         stages_log.append({"stage": len(stages_log) + 1, "name": "Pipeline Error", "status": "FAILED", "detail": str(e)})

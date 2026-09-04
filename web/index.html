@@ -48,6 +48,24 @@
   <!-- Main Container -->
   <main class="container">
     
+    <!-- Top Result Banner (Appears when analysis completes) -->
+    <div class="result-top-banner" id="resultTopBanner" style="display:none">
+      <div class="rtb-inner">
+        <div class="rtb-left">
+          <span class="rtb-tag">TRUSTLENS RESULT</span>
+          <h2 class="rtb-status-pill" id="rtbStatusPill">STATUS: VERIFIED MATCH FOUND</h2>
+        </div>
+        <div class="rtb-right">
+          <div class="rtb-counts-summary" id="rtbCountsSummary">
+            <span class="stat-pill sp-verif">Verified: <strong id="sumCountVerif">0</strong></span>
+            <span class="stat-pill sp-rev">Review: <strong id="sumCountRev">0</strong></span>
+            <span class="stat-pill sp-rej">Rejected: <strong id="sumCountRej">0</strong></span>
+          </div>
+          <span class="rtb-latency-badge" id="rtbLatencyBadge">⚡ 0.0s</span>
+        </div>
+      </div>
+    </div>
+
     <!-- Top Row: Upload & Multi-Stage Execution Tracker -->
     <div class="grid-layout">
       
@@ -66,7 +84,7 @@
               <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/>
             </svg>
             <p class="dropzone-main-text">Drag & drop a consenting face photo or <span class="accent-text">browse files</span></p>
-            <p class="dropzone-sub-text">Supported: JPEG, PNG, WEBP (Evaluated with InsightFace ArcFace 512-d)</p>
+            <p class="dropzone-sub-text">Evaluated with InsightFace ArcFace 512-d on CPU</p>
           </div>
 
           <!-- Preview & Canvas Overlay -->
@@ -174,7 +192,7 @@
             <div class="stage-icon">5</div>
             <div class="stage-content">
               <div class="stage-title">Candidate Face Verification</div>
-              <div class="stage-detail">Independent ArcFace 512-d group comparison</div>
+              <div class="stage-detail">Concurrent ArcFace 512-d group comparison</div>
             </div>
             <span class="stage-status status-pending">PENDING</span>
           </div>
@@ -227,16 +245,19 @@
     </div>
 
     <!-- ============================================================ -->
-    <!-- SECTION 3: BEST MATCH & SEPARATION MARGIN -->
+    <!-- SECTION 3: PRIMARY SECTION — VERIFIED MATCHES -->
     <!-- ============================================================ -->
-    <section class="card glass-card" id="bestMatchSection" style="display:none">
+    <section class="card glass-card card-highlight-verified" id="bestMatchSection" style="display:none">
       <div class="card-header">
-        <h2 class="card-title highlight-title">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="title-icon">
-            <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>
-          </svg>
-          BEST MATCH
-        </h2>
+        <div class="section-title-wrap">
+          <span class="section-tag-badge">PRIMARY MATCH</span>
+          <h2 class="card-title highlight-title">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="title-icon">
+              <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>
+            </svg>
+            Verified Match
+          </h2>
+        </div>
         <a class="btn btn-primary btn-sm" id="openSourceBtn" href="#" target="_blank" rel="noopener noreferrer">
           Open Source
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="btn-icon-sm">
@@ -286,17 +307,34 @@
     </section>
 
     <!-- ============================================================ -->
-    <!-- SECTION 4: DISCOVERED CANDIDATES -->
+    <!-- SECTION 4: SECONDARY SECTION — OTHER SEARCH CANDIDATES -->
     <!-- ============================================================ -->
     <section class="card glass-card" id="allCandidatesSection" style="display:none">
-      <div class="card-header">
-        <h2 class="card-title">Discovered Web & Social Candidates</h2>
-        <div class="filter-pills">
-          <button class="filter-chip active" data-filter="ALL">All Candidates (<span id="countAll">0</span>)</button>
-          <button class="filter-chip" data-filter="SOCIAL">Social Only (<span id="countSocial">0</span>)</button>
+      <details class="candidates-accordion" id="candidatesAccordion">
+        <summary class="candidates-summary">
+          <div class="summary-left">
+            <span class="accordion-arrow">▶</span>
+            <h3 class="accordion-title">Other Search Candidates (<span id="otherCandidatesCount">0</span>)</h3>
+          </div>
+          <div class="summary-counts">
+            <span class="count-chip chip-verif">Verified: <strong id="countVerif">0</strong></span>
+            <span class="count-chip chip-rev">Review: <strong id="countRev">0</strong></span>
+            <span class="count-chip chip-rej">Rejected: <strong id="countRej">0</strong></span>
+          </div>
+        </summary>
+
+        <div class="accordion-body">
+          <div class="filter-pills">
+            <button class="filter-chip active" data-filter="ALL">All Candidates (<span id="countAll">0</span>)</button>
+            <button class="filter-chip" data-filter="VERIFIED">Verified Only (<span id="chipCountVerif">0</span>)</button>
+            <button class="filter-chip" data-filter="REVIEW">Review Only (<span id="chipCountRev">0</span>)</button>
+            <button class="filter-chip" data-filter="REJECTED">Rejected Only (<span id="chipCountRej">0</span>)</button>
+            <button class="filter-chip" data-filter="SOCIAL">Social Platforms (<span id="countSocial">0</span>)</button>
+          </div>
+          <p class="filter-explanatory-note">Unrelated candidates falling below the calibrated decision boundary are categorized as <strong>REJECTED</strong> to prevent false-positive visual confirmation.</p>
+          <div class="candidates-grid" id="candidatesGrid"></div>
         </div>
-      </div>
-      <div class="candidates-grid" id="candidatesGrid"></div>
+      </details>
     </section>
 
     <!-- ============================================================ -->
@@ -361,7 +399,7 @@
           <h2 class="card-title">Independent On-Chain Re-Verification</h2>
           <button class="btn btn-secondary btn-sm" id="verifyProofBtn">Verify Proof</button>
         </div>
-        <p class="card-desc">Queries Polygon Amoy smart contract $\rightarrow$ retrieves IPFS manifest $\rightarrow$ recomputes SHA-256 locally $\rightarrow$ verifies bit-for-bit integrity.</p>
+        <p class="card-desc">Queries Polygon Amoy smart contract &rarr; retrieves IPFS manifest &rarr; recomputes SHA-256 locally &rarr; verifies bit-for-bit integrity.</p>
 
         <div class="verif-result-area" id="verifResultArea" style="display:none">
           <div class="result-banner" id="verifBanner">
