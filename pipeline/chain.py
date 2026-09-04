@@ -81,10 +81,13 @@ def load_abi() -> list[dict[str, Any]]:
 def get_web3_and_contract() -> Tuple[Web3, Any]:
     """Connect to Polygon Amoy RPC and instantiate the ProofRegistry contract instance.
 
+    Uses automatic multi-RPC fallback for high availability.
+
     Raises:
-        EnvironmentError: If CONTRACT_ADDRESS or RPC URL is missing or invalid.
+        EnvironmentError: If CONTRACT_ADDRESS is missing.
+        ConnectionError: If no RPC endpoint is reachable.
     """
-    rpc_url = os.environ.get("AMOY_RPC_URL", "https://polygon-amoy.drpc.org")
+    configured_rpc = os.environ.get("AMOY_RPC_URL", "https://polygon-amoy.drpc.org")
     contract_addr = os.environ.get("CONTRACT_ADDRESS")
 
     if not contract_addr or contract_addr == "fill_in_after_running_deploy_script":
@@ -93,9 +96,33 @@ def get_web3_and_contract() -> Tuple[Web3, Any]:
             "Please deploy the contract (`npm run deploy:amoy`) and set CONTRACT_ADDRESS."
         )
 
-    w3 = Web3(Web3.HTTPProvider(rpc_url))
-    if not w3.is_connected():
-        raise ConnectionError(f"Could not connect to Polygon Amoy RPC at: {rpc_url}")
+    rpc_candidates = [
+        configured_rpc,
+        "https://polygon-amoy-bor-rpc.publicnode.com",
+        "https://polygon-amoy.drpc.org",
+        "https://rpc.ankr.com/polygon_amoy",
+    ]
+    # Deduplicate while preserving order
+    seen_rpcs = set()
+    unique_rpcs = []
+    for r in rpc_candidates:
+        if r and r not in seen_rpcs:
+            seen_rpcs.add(r)
+            unique_rpcs.append(r)
+
+    w3 = None
+    last_err = None
+    for rpc in unique_rpcs:
+        try:
+            candidate_w3 = Web3(Web3.HTTPProvider(rpc, request_kwargs={"timeout": 12}))
+            if candidate_w3.is_connected():
+                w3 = candidate_w3
+                break
+        except Exception as e:
+            last_err = e
+
+    if w3 is None:
+        raise ConnectionError(f"Could not connect to any Polygon Amoy RPC endpoints. Last error: {last_err}")
 
     contract_checksum = Web3.to_checksum_address(contract_addr)
     contract = w3.eth.contract(address=contract_checksum, abi=load_abi())
