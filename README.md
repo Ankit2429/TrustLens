@@ -124,11 +124,13 @@ npm run deploy:amoy
 ## 5. Usage & CLI Commands
 
 ### A. Launch Interactive Web Application Dashboard
-To launch the interactive local TrustLens dashboard:
+To launch the interactive local TrustLens web interface:
 ```bash
-python web_server.py --port 8080
+python -m webapp
 ```
-Open **[http://localhost:8080](http://localhost:8080)** in your browser to:
+*(Or alternatively: `python web_server.py --port 8000`)*
+
+Open **[http://127.0.0.1:8000](http://127.0.0.1:8000)** in your browser to:
 - Upload face photos and inspect interactive 5-point landmark bounding boxes and multi-factor quality scores.
 - Select target subjects in multi-face photos.
 - Run live SerpApi visual discovery with multi-source candidate filtering and separation margin analysis.
