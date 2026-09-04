@@ -35,6 +35,41 @@ def sha256_of_bytes(data: bytes) -> str:
     return hashlib.sha256(data).hexdigest()
 
 
+def calculate_separation_margin(
+    verified_similarities: list[float],
+    rejected_similarities: list[float],
+) -> dict[str, Any]:
+    """Calculate the separation margin between the best verified match and the strongest rejected candidate.
+
+    Args:
+        verified_similarities: List of similarity scores for candidates meeting verified threshold.
+        rejected_similarities: List of similarity scores for non-verified / rejected candidates.
+
+    Returns:
+        Dictionary with best_verified, best_rejected, separation_margin, and interpretation.
+    """
+    best_ver = max(verified_similarities) if verified_similarities else 0.0
+    best_rej = max(rejected_similarities) if rejected_similarities else 0.0
+    margin = round(best_ver - best_rej, 4) if (verified_similarities and rejected_similarities) else None
+
+    if margin is not None:
+        if margin >= 0.30:
+            interp = "Clear separation: Strong differentiation between matching subject and non-matching candidates"
+        elif margin >= 0.10:
+            interp = "Moderate separation: Meaningful differentiation observed across evaluated candidates"
+        else:
+            interp = "Narrow margin: Evaluation warrants closer inspection of boundary candidates"
+    else:
+        interp = "Single-tier distribution: Margin calculation requires both verified and non-matching candidates"
+
+    return {
+        "best_verified_similarity": round(best_ver, 4) if verified_similarities else None,
+        "best_rejected_similarity": round(best_rej, 4) if rejected_similarities else None,
+        "separation_margin": margin,
+        "margin_interpretation": interp,
+    }
+
+
 def build_evidence_manifest(
     query_face_metadata: dict[str, Any],
     candidate: dict[str, Any],
@@ -48,8 +83,14 @@ def build_evidence_manifest(
     usable_images_count: int = 1,
     candidate_face_count: int = 1,
     candidate_det_confidence: float = 1.0,
+    candidate_image_quality: Optional[float] = None,
+    query_image_quality: Optional[float] = None,
+    selected_face_index: int = 0,
+    separation_margin: Optional[float] = None,
+    margin_interpretation: Optional[str] = None,
     thumbnail_sha256: Optional[str] = None,
     discovery_timestamp: Optional[int] = None,
+    blockchain_info: Optional[dict[str, Any]] = None,
 ) -> tuple[dict[str, Any], str]:
     """Construct a complete, tamper-evident evidence manifest for a verified discovery.
 
@@ -66,8 +107,14 @@ def build_evidence_manifest(
         usable_images_count: Total candidate images successfully downloaded & analyzed.
         candidate_face_count: Number of faces detected in candidate image.
         candidate_det_confidence: Detection confidence score for the candidate face.
+        candidate_image_quality: Quality score of the candidate face image.
+        query_image_quality: Quality score of the query face image.
+        selected_face_index: Index of the selected query face (for multi-face inputs).
+        separation_margin: Score delta between best verified and best non-matching candidate.
+        margin_interpretation: Qualitative interpretation note for the separation margin.
         thumbnail_sha256: SHA-256 hash of the downloaded candidate thumbnail bytes.
         discovery_timestamp: Unix timestamp when discovery occurred (defaults to now).
+        blockchain_info: Optional on-chain anchor details (network, chain_id, contract).
 
     Returns:
         Tuple of (manifest_dict, canonical_sha256_hex).
@@ -83,7 +130,7 @@ def build_evidence_manifest(
     thumbnail_url = candidate.get("thumbnail")
 
     manifest_payload: dict[str, Any] = {
-        "schema_version": "1.0.0",
+        "schema_version": "1.1.0",
         "record_timestamp": ts,
         "face": {
             "algorithm": query_face_metadata.get("algorithm", "InsightFace buffalo_l"),
@@ -92,6 +139,8 @@ def build_evidence_manifest(
             "dtype": query_face_metadata.get("dtype", "float32"),
             "normalized": bool(query_face_metadata.get("normalization_status") == "L2_normalized"),
             "embedding_hash": query_face_metadata.get("embedding_hash", ""),
+            "selected_face_index": int(selected_face_index),
+            "query_image_quality": round(float(query_image_quality), 4) if query_image_quality is not None else None,
         },
         "search": {
             "provider": "SerpApi",
@@ -118,11 +167,21 @@ def build_evidence_manifest(
             "decision_reason": decision_reason,
             "face_detection_confidence": round(float(candidate_det_confidence), 4),
             "candidate_face_count": int(candidate_face_count),
+            "candidate_image_quality": round(float(candidate_image_quality), 4) if candidate_image_quality is not None else None,
+            "separation_margin": round(float(separation_margin), 4) if separation_margin is not None else None,
+            "margin_interpretation": margin_interpretation,
         },
         "integrity": {
             "canonicalization_method": "RFC-8785 canonical JSON (sorted keys, compact separators, UTF-8)",
         },
     }
+
+    if blockchain_info:
+        manifest_payload["blockchain"] = {
+            "network": blockchain_info.get("network", "Polygon Amoy"),
+            "chain_id": int(blockchain_info.get("chain_id", 80002)),
+            "contract_address": blockchain_info.get("contract_address", ""),
+        }
 
     # Compute deterministic hash over the payload
     manifest_hash = sha256_of_json(manifest_payload)
@@ -145,4 +204,3 @@ def build_record(query_face_hash: str, match: dict, similarity: float) -> tuple[
         review_threshold=0.25,
         decision_reason="Automated threshold evaluation",
     )
-

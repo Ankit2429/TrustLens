@@ -1,7 +1,7 @@
 """Cryptographic Tamper-Evidence Demonstration.
 
-Proves that any local mutation of discovered metadata, URLs, or face similarity scores
-violates the cryptographic SHA-256 fingerprint anchored on Polygon Amoy.
+Proves that any mutation of discovered metadata, URLs, face similarity scores,
+or quality metrics violates the cryptographic SHA-256 fingerprint anchored on Polygon Amoy.
 
 Usage:
     python tamper_demo.py <record_hash_hex>
@@ -38,7 +38,6 @@ def run_tamper_demo(data_hash_hex: str):
         print(f"      -> Anchored Hash (Chain): {clean_hash}")
     except Exception as e:
         print(f"[-] Failed to read proof from Polygon Amoy: {e}")
-        print("    (If testing offline without chain, pass a mock hash or run with local manifest)")
         sys.exit(1)
 
     # 2. Fetch authentic manifest from IPFS
@@ -63,52 +62,63 @@ def run_tamper_demo(data_hash_hex: str):
         print("[!] Original record does not match blockchain hash. Aborting demo.")
         sys.exit(1)
 
-    # 4. Deliberately tamper with record
-    print(f"\n[4/4] Deliberately tampering with record metadata...")
-    tampered_record = copy.deepcopy(original_record)
-
-    # Modify source URL and similarity score
-    orig_url = tampered_record.get("candidate", {}).get("source_url", "N/A")
-    orig_sim = tampered_record.get("verification", {}).get("face_similarity_score", "N/A")
-
-    if "candidate" in tampered_record and isinstance(tampered_record["candidate"], dict):
-        tampered_record["candidate"]["source_url"] = "https://fake-imposter-profile.example.com/spoofed-photo"
+    # 4. Multi-scenario deliberate tampering tests
+    print(f"\n[4/4] Executing multi-scenario cryptographic tamper simulations...")
+    
+    # Scenario A: URL Tampering
+    tampered_a = copy.deepcopy(original_record)
+    if "candidate" in tampered_a and isinstance(tampered_a["candidate"], dict):
+        tampered_a["candidate"]["source_url"] = "https://fake-imposter-profile.example.com/spoofed-photo"
     else:
-        tampered_record["source_url"] = "https://fake-imposter-profile.example.com/spoofed-photo"
+        tampered_a["source_url"] = "https://fake-imposter-profile.example.com/spoofed-photo"
+    hash_a = sha256_of_json(tampered_a)
+    is_valid_a = hash_a.lower() == clean_hash.lower()
 
-    if "verification" in tampered_record and isinstance(tampered_record["verification"], dict):
-        tampered_record["verification"]["face_similarity_score"] = 0.9999
-        tampered_record["verification"]["decision"] = "VERIFIED"
+    # Scenario B: Similarity Score Tampering
+    tampered_b = copy.deepcopy(original_record)
+    if "verification" in tampered_b and isinstance(tampered_b["verification"], dict):
+        tampered_b["verification"]["face_similarity_score"] = 0.9999
     else:
-        tampered_record["face_similarity_score"] = 0.9999
+        tampered_b["face_similarity_score"] = 0.9999
+    hash_b = sha256_of_json(tampered_b)
+    is_valid_b = hash_b.lower() == clean_hash.lower()
 
-    print(f"      * Modified candidate source_url:")
-    print(f"        Original : {orig_url}")
-    print(f"        Tampered : {tampered_record.get('candidate', {}).get('source_url')}")
-    print(f"      * Modified face_similarity_score:")
-    print(f"        Original : {orig_sim}")
-    print(f"        Tampered : {tampered_record.get('verification', {}).get('face_similarity_score')}")
-
-    tampered_computed_hash = sha256_of_json(tampered_record)
-    tampered_is_valid = tampered_computed_hash.lower() == clean_hash.lower()
+    # Scenario C: Platform / Quality Metadata Tampering
+    tampered_c = copy.deepcopy(original_record)
+    if "candidate" in tampered_c and isinstance(tampered_c["candidate"], dict):
+        tampered_c["candidate"]["platform"] = "Manipulated Platform"
+    if "verification" in tampered_c and isinstance(tampered_c["verification"], dict):
+        tampered_c["verification"]["decision"] = "FORGED_STATUS"
+    hash_c = sha256_of_json(tampered_c)
+    is_valid_c = hash_c.lower() == clean_hash.lower()
 
     print("\n" + "=" * 75)
-    print("  TAMPER DETECTION RESULTS")
+    print("  TAMPER DETECTION RESULTS (MULTI-SCENARIO)")
     print("=" * 75)
-    print("  [A] ORIGINAL RECORD VERIFICATION:")
+    print("  [AUTHENTIC] ORIGINAL RECORD VERIFICATION:")
     print(f"      Blockchain Hash : {clean_hash}")
     print(f"      Local Hash      : {original_computed_hash}")
     print(f"      Result          : VALID (Bit-for-bit cryptographic match)")
 
-    print("\n  [B] TAMPERED RECORD VERIFICATION:")
+    print("\n  [SCENARIO 1] SOURCE URL MODIFICATION:")
     print(f"      Blockchain Hash : {clean_hash}")
-    print(f"      Tampered Hash   : {tampered_computed_hash}")
-    print(f"      Result          : TAMPER DETECTED!")
+    print(f"      Tampered Hash   : {hash_a}")
+    print(f"      Result          : {'TAMPER DETECTED!' if not is_valid_a else 'FAIL'}")
+
+    print("\n  [SCENARIO 2] FACE SIMILARITY SCORE MODIFICATION:")
+    print(f"      Blockchain Hash : {clean_hash}")
+    print(f"      Tampered Hash   : {hash_b}")
+    print(f"      Result          : {'TAMPER DETECTED!' if not is_valid_b else 'FAIL'}")
+
+    print("\n  [SCENARIO 3] PLATFORM & DECISION METADATA FORGERY:")
+    print(f"      Blockchain Hash : {clean_hash}")
+    print(f"      Tampered Hash   : {hash_c}")
+    print(f"      Result          : {'TAMPER DETECTED!' if not is_valid_c else 'FAIL'}")
     print("=" * 75)
     print("  EXPLANATION:")
     print("  Because SHA-256 is collision-resistant and avalanche-sensitive, altering")
-    print("  even a single character in the evidence manifest produces a completely")
-    print("  different cryptographic fingerprint, rendering unauthorized tampering")
+    print("  even a single bit or character in the evidence manifest produces a")
+    print("  completely different cryptographic hash, rendering unauthorized tampering")
     print("  immediately detectable by anyone querying the blockchain.")
     print("=" * 75 + "\n")
 
@@ -118,4 +128,3 @@ if __name__ == "__main__":
         print("Usage: python tamper_demo.py <evidence_hash_hex>")
         sys.exit(1)
     run_tamper_demo(sys.argv[1])
-

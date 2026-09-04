@@ -1,4 +1,4 @@
-"""Comprehensive Unit Test Suite for Face Identification & Blockchain Verification Pipeline.
+"""Comprehensive Unit Test Suite for TrustLens Pipeline.
 
 Tests:
 1. Cosine similarity mathematical correctness
@@ -8,8 +8,10 @@ Tests:
 5. Evidence manifest generation and field provenance
 6. Domain extraction and platform classification
 7. Multi-tier decision engine (VERIFIED, REVIEW, REJECTED)
-8. Cryptographic tamper detection logic
+8. Cryptographic tamper detection logic across multiple fields
 9. Smart contract ABI interface validation
+10. Face quality assessment & group-image multi-face comparison
+11. Separation margin calculation & qualitative interpretation
 """
 import hashlib
 import json
@@ -17,7 +19,11 @@ import numpy as np
 import pytest
 
 from pipeline.face_id import (
+    analyze_face,
+    assess_face_quality,
+    compare_group_faces,
     cosine_similarity,
+    detect_all_faces,
     get_embedding_metadata,
     hash_embedding,
     normalize_embedding,
@@ -25,6 +31,7 @@ from pipeline.face_id import (
 from pipeline.search import extract_domain, classify_platform
 from pipeline.fingerprint import (
     build_evidence_manifest,
+    calculate_separation_margin,
     canonical_json_bytes,
     sha256_of_json,
     sha256_of_bytes,
@@ -167,11 +174,11 @@ def test_domain_and_platform_classification(url, expected_domain, expected_platf
 
 
 # =====================================================================
-# 5. Evidence Manifest & Decision Engine Tests
+# 5. Evidence Manifest & Separation Margin Tests
 # =====================================================================
 
 def test_evidence_manifest_structure_and_hash():
-    """Evidence manifest must adhere to schema version 1.0.0 and be deterministically hashable."""
+    """Evidence manifest must adhere to schema and be deterministically hashable."""
     face_meta = {
         "algorithm": "InsightFace buffalo_l",
         "model": "ArcFace",
@@ -198,12 +205,17 @@ def test_evidence_manifest_structure_and_hash():
         review_threshold=0.30,
         decision_reason="High ArcFace similarity",
         query_image_cid="QmTest123CID",
+        candidate_image_quality=0.85,
+        query_image_quality=0.90,
+        separation_margin=0.45,
+        margin_interpretation="Clear separation",
         discovery_timestamp=1741160000,
     )
 
-    assert manifest["schema_version"] == "1.0.0"
+    assert manifest["schema_version"] == "1.1.0"
     assert manifest["verification"]["decision"] == "VERIFIED"
     assert manifest["verification"]["face_similarity_score"] == 0.8642
+    assert manifest["verification"]["separation_margin"] == 0.45
     assert manifest["candidate"]["platform"] == "Instagram"
     assert manifest["integrity"]["canonicalization_method"].startswith("RFC-8785")
     assert len(root_hash) == 64
@@ -225,6 +237,18 @@ def test_evidence_manifest_determinism():
     assert hash1 == hash2
 
 
+def test_calculate_separation_margin():
+    """Separation margin must compute difference between best verified and best rejected candidate."""
+    verified_sims = [0.85, 0.78, 0.92]
+    rejected_sims = [0.25, 0.31, 0.15]
+
+    margin_info = calculate_separation_margin(verified_sims, rejected_sims)
+    assert margin_info["best_verified_similarity"] == 0.92
+    assert margin_info["best_rejected_similarity"] == 0.31
+    assert pytest.approx(margin_info["separation_margin"], abs=1e-4) == 0.61
+    assert "Clear separation" in margin_info["margin_interpretation"]
+
+
 # =====================================================================
 # 6. Cryptographic Tamper Detection Tests
 # =====================================================================
@@ -238,7 +262,6 @@ def test_tamper_detection_on_url_modification():
         face_meta, cand, 0.82, "VERIFIED", 0.40, 0.30, "Match", discovery_timestamp=1741160000
     )
 
-    # Mutate source URL locally
     tampered = json.loads(json.dumps(manifest))
     tampered["candidate"]["source_url"] = "https://fake-imposter.com/spoof.jpg"
     tampered_hash = sha256_of_json(tampered)
@@ -255,7 +278,6 @@ def test_tamper_detection_on_similarity_modification():
         face_meta, cand, 0.32, "REVIEW", 0.40, 0.30, "Review needed", discovery_timestamp=1741160000
     )
 
-    # Mutate similarity score locally to pretend it's 0.99
     tampered = json.loads(json.dumps(manifest))
     tampered["verification"]["face_similarity_score"] = 0.99
     tampered["verification"]["decision"] = "VERIFIED"
@@ -264,8 +286,46 @@ def test_tamper_detection_on_similarity_modification():
     assert tampered_hash != original_hash
 
 
+def test_tamper_detection_on_platform_modification():
+    """Mutating platform metadata must cause a hash mismatch."""
+    face_meta = {"embedding_hash": "e" * 64}
+    cand = {"link": "https://pinterest.com/pin/123", "platform": "Pinterest"}
+
+    manifest, original_hash = build_evidence_manifest(
+        face_meta, cand, 0.94, "VERIFIED", 0.40, 0.30, "Verified match", discovery_timestamp=1741160000
+    )
+
+    tampered = json.loads(json.dumps(manifest))
+    tampered["candidate"]["platform"] = "Forged Platform"
+    tampered_hash = sha256_of_json(tampered)
+
+    assert tampered_hash != original_hash
+
+
 # =====================================================================
-# 7. Smart Contract Interface Validation
+# 7. Multi-Face Candidate Group Image Comparison Test
+# =====================================================================
+
+def test_compare_group_faces():
+    """compare_group_faces must evaluate all candidate faces and pick the highest similarity."""
+    rng = np.random.RandomState(42)
+    query_emb = normalize_embedding(rng.randn(512).astype(np.float32))
+
+    # Create 3 candidate faces with known embeddings
+    face_0 = {"normalized_embedding": normalize_embedding(rng.randn(512).astype(np.float32)), "det_score": 0.95}
+    face_1 = {"normalized_embedding": query_emb.copy(), "det_score": 0.88}  # exact match
+    face_2 = {"normalized_embedding": normalize_embedding(rng.randn(512).astype(np.float32)), "det_score": 0.99}
+
+    group_faces = [face_0, face_1, face_2]
+    res = compare_group_faces(query_emb, group_faces)
+
+    assert res["evaluated_face_count"] == 3
+    assert res["best_face_index"] == 1
+    assert pytest.approx(res["best_similarity"], abs=1e-5) == 1.0
+
+
+# =====================================================================
+# 8. Smart Contract Interface Validation
 # =====================================================================
 
 def test_proof_registry_abi_functions():
@@ -280,13 +340,12 @@ def test_proof_registry_abi_functions():
 
 
 # =====================================================================
-# 8. Live Face Analysis & Deterministic Embedding Test
+# 9. Live Face Analysis & Quality Scoring
 # =====================================================================
 
 def test_live_face_analysis_on_sample_image():
     """Live InsightFace Buffalo_l / ArcFace analysis on demo/sample_face.jpg."""
     import os
-    from pipeline.face_id import analyze_face
 
     sample_path = os.path.join("demo", "sample_face.jpg")
     if not os.path.exists(sample_path):
@@ -299,6 +358,9 @@ def test_live_face_analysis_on_sample_image():
     assert analysis1["face_count"] >= 1
     assert analysis1["det_score"] > 0.5
     assert len(analysis1["bbox"]) == 4
+    assert "quality_score" in analysis1
+    assert "quality_breakdown" in analysis1
+    assert analysis1["quality_score"] > 0.20
 
     emb1 = analysis1["normalized_embedding"]
     assert emb1.shape == (512,)
@@ -308,4 +370,3 @@ def test_live_face_analysis_on_sample_image():
     assert analysis1["embedding_hash"] == analysis2["embedding_hash"]
     assert len(analysis1["embedding_hash"]) == 64
     assert pytest.approx(cosine_similarity(emb1, analysis2["normalized_embedding"]), abs=1e-5) == 1.0
-

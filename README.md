@@ -1,6 +1,6 @@
 # TrustLens — Face Identification & Blockchain Verification
 
-[![Tests](https://img.shields.io/badge/pytest-28%20passed-brightgreen.svg)](tests/)
+[![Tests](https://img.shields.io/badge/pytest-31%20passed-brightgreen.svg)](tests/)
 [![Network](https://img.shields.io/badge/Polygon-Amoy%20(80002)-8247E5.svg)](https://amoy.polygonscan.com/)
 [![Storage](https://img.shields.io/badge/IPFS-Pinata-E11D48.svg)](https://pinata.cloud/)
 [![Model](https://img.shields.io/badge/InsightFace-buffalo__l%20ArcFace%20512--d-blue.svg)](https://github.com/deepinsight/insightface)
@@ -9,43 +9,43 @@
 
 ## 1. Overview & Problem Statement
 
-In an era of digital media proliferation, establishing verifiable cryptographic provenance for discovered public web/social content is critical. When searching for public visual matches of a face image, conventional search engines cannot be treated as trusted arbiters of identity, and central web hosts can modify or delete evidence without record.
+In an era of digital media proliferation, establishing verifiable cryptographic provenance for discovered public web and social content is critical. When searching for public visual matches of a face image, conventional search engines cannot be treated as trusted arbiters of identity, and centralized web hosts can modify or delete evidence without an immutable record.
 
-**This project implements a decentralized, tamper-evident verification pipeline:**
-1. Generates complete, normalized 512-dimensional ArcFace face embeddings and deterministic cryptographic fingerprints.
-2. Discovers matching public web and social media candidates via multi-source reverse visual discovery (Google Lens via SerpApi).
-3. Independently downloads and executes local face detection and ArcFace cosine similarity verification on candidate images (never blindly trusting search engine ranking).
-4. Classifies matches using a configurable multi-tier decision engine (`VERIFIED`, `REVIEW`, `REJECTED`).
-5. Generates an RFC-8785 canonical JSON evidence manifest capturing full discovery and verification provenance.
-6. Pins the canonical manifest to IPFS for decentralized content-addressed storage.
-7. Anchors the cryptographic SHA-256 hash to the **Polygon Amoy testnet** using a Solidity smart contract (`ProofRegistry.sol`).
-8. Provides standalone independent re-verification (`verify.py`) and a cryptographic tamper demonstration (`tamper_demo.py`).
+**TrustLens implements a decentralized, tamper-evident verification pipeline:**
+1. **Explainable Face Analysis**: Detects faces, evaluates multi-factor image quality (sharpness, exposure, resolution, frontality, confidence), supports multi-face selection, and extracts complete normalized 512-dimensional ArcFace embeddings with deterministic SHA-256 fingerprints.
+2. **Multi-Source Visual Discovery**: Discovers matching public web and social media candidates via Google Lens (SerpApi).
+3. **Independent Multi-Face Candidate Verification**: Independently downloads and executes local ArcFace cosine similarity comparisons on all candidate faces in group photos without assuming the largest face is the target subject.
+4. **Candidate Ranking & Separation Margin**: Ranks candidates deterministically and calculates the separation margin gap between the best verified match and the strongest rejected candidate.
+5. **Multi-Tier Decision Engine**: Categorizes matches using configurable empirical thresholds (`VERIFIED`, `REVIEW`, `REJECTED`) with explicit decision reason codes.
+6. **Canonical Evidence Manifest (RFC-8785)**: Generates a deterministic JSON evidence manifest capturing complete provenance, quality scores, and separation metrics.
+7. **Decentralized Storage & On-Chain Anchoring**: Pins the manifest to IPFS via Pinata and anchors the cryptographic SHA-256 hash to **Polygon Amoy Testnet** (`Chain ID: 80002`) via `ProofRegistry.sol`.
+8. **Independent Re-Verification & Tamper Detection**: Provides standalone public verification (`verify.py`) and multi-scenario cryptographic tamper detection (`tamper_demo.py`).
 
 ---
 
 ## 2. System Architecture & Pipeline
 
 ```
-[ QUERY IMAGE ]
+[ INPUT IMAGE ]
        │
        ▼
-[1] Face Detection & Quality Assessment (SCRFD / RetinaFace)
-       │
+[1] Face Detection, Multi-Factor Quality Gate & Face Selection (SCRFD / RetinaFace)
+       │  (Quality: Sharpness, Exposure, Resolution, Frontality, Confidence)
        ▼
 [2] Full 512-d ArcFace Embedding & Normalized SHA-256 Hashing
        │
        ▼
-[3] Query Image IPFS Pinning (Pinata Gateway for Search)
+[3] Query Image IPFS Pinning (Pinata Gateway for Visual Search)
        │
        ▼
 [4] Multi-Source & Multi-Platform Web Discovery (Google Lens via SerpApi)
        │  (Instagram, LinkedIn, Facebook, X, Reddit, YouTube, TikTok, Pinterest, News/Media, General Web)
        ▼
-[5] Independent Candidate Face Verification (InsightFace ArcFace on CPU)
-       │
+[5] Independent Multi-Face Candidate Verification (InsightFace ArcFace on CPU)
+       │  (Compares query against ALL faces detected in candidate group images)
        ▼
-[6] Candidate Ranking & Multi-Tier Decision Engine (VERIFIED / REVIEW / REJECTED)
-       │
+[6] Candidate Ranking & Separation Margin Analysis
+       │  (Calculates best verified vs best rejected delta & qualitative interpretation)
        ▼
 [7] Canonical Evidence Manifest Generation (RFC-8785 Deterministic JSON)
        │
@@ -53,10 +53,10 @@ In an era of digital media proliferation, establishing verifiable cryptographic 
 [8] SHA-256 Cryptographic Fingerprint & IPFS Storage
        │
        ▼
-[9] Polygon Amoy Smart Contract Proof Anchoring (`registerProof`)
+[9] Polygon Amoy Smart Contract Proof Anchoring (`ProofRegistry.sol`)
        │
        ▼
-[ INDEPENDENT RE-VERIFICATION & TAMPER DETECTION ] (`verify.py` / `tamper_demo.py`)
+[ INDEPENDENT RE-VERIFICATION & MULTI-SCENARIO TAMPER DETECTION ]
 ```
 
 ---
@@ -68,7 +68,7 @@ In an era of digital media proliferation, establishing verifiable cryptographic 
 - **Decentralized Storage**: IPFS via [Pinata](https://pinata.cloud/) with multi-gateway fallback resolution (Pinata, Cloudflare, IPFS.io, dweb.link).
 - **Blockchain**: Polygon Amoy Testnet (Chain ID: `80002`, Sepolia-anchored EVM testnet).
 - **Smart Contract & Tooling**: Solidity `0.8.20`, Hardhat, and `web3.py` (with dynamic EIP-1559 gas fee estimation).
-- **Testing**: `pytest` (28 unit tests covering vector math, deterministic hashing, manifest schema, and contract logic).
+- **Testing**: `pytest` (31 unit tests covering vector math, deterministic hashing, manifest schema, separation margins, quality gates, and contract logic).
 
 ---
 
@@ -102,81 +102,69 @@ SERPAPI_KEY=your_serpapi_key
 PINATA_JWT=your_pinata_jwt
 
 # Blockchain: Polygon Amoy Testnet (Chain ID 80002)
-AMOY_RPC_URL=https://rpc-amoy.polygon.technology/
+AMOY_RPC_URL=https://polygon-amoy.drpc.org
 PRIVATE_KEY=your_testnet_wallet_private_key
-CONTRACT_ADDRESS=your_deployed_contract_address
+CONTRACT_ADDRESS=0x6D03eE0515FeeA663D6fe79F8e12dDA4C24B3c5F
 
 # Configurable Decision Thresholds
 VERIFIED_THRESHOLD=0.40
 REVIEW_THRESHOLD=0.30
+MIN_QUALITY_THRESHOLD=0.20
 ```
 
-### 3. Deploy Smart Contract to Polygon Amoy
-1. Obtain free Polygon Amoy testnet tokens (POL) from the [Polygon Faucet](https://faucet.polygon.technology/).
-2. Compile and deploy the `ProofRegistry` contract:
+### 3. Deploy Smart Contract to Polygon Amoy *(Optional / Pre-deployed)*
+The contract is already deployed on Polygon Amoy at `0x6D03eE0515FeeA663D6fe79F8e12dDA4C24B3c5F`. To deploy your own instance:
 ```bash
 npm run compile
 npm run deploy:amoy
 ```
-3. Copy the outputted contract address into `.env` under `CONTRACT_ADDRESS`.
 
 ---
 
-## 5. Usage & Demonstration Commands
+## 5. Usage & CLI Commands
 
-### A. Run Full Pipeline
+### A. Run Full TrustLens Pipeline
 To run the complete 9-stage pipeline on a face image:
 ```bash
-python -m pipeline.main demo/sample_face.jpg
+python -m pipeline.main demo/public_face_demo.jpg
 ```
 
 #### Optional CLI Arguments:
+- `--face-index <int>`: Index of face to select if input contains multiple detected subjects (default: `0`).
 - `--verified-threshold <float>`: Custom similarity cutoff for `VERIFIED` status (default: `0.40`).
 - `--review-threshold <float>`: Custom similarity cutoff for `REVIEW` status (default: `0.30`).
-- `--skip-blockchain`: Run visual search, face verification, and IPFS pinning without submitting an on-chain transaction (dry run / offline test mode).
+- `--min-quality <float>`: Minimum acceptable face quality score (default: `0.20`).
+- `--skip-blockchain`: Run visual search, face verification, and IPFS pinning without submitting an on-chain transaction (dry run / offline mode).
 
 ### B. Independent On-Chain Re-Verification
-Anyone can re-verify the authenticity and integrity of a previously registered proof directly from Polygon Amoy and IPFS without reusing memory from the main pipeline:
+Anyone can re-verify the authenticity and integrity of a registered proof directly from Polygon Amoy and IPFS:
 ```bash
 python verify.py <evidence_sha256_hash>
 ```
 
-**Example output:**
+**Live Verified Example:**
+```bash
+python verify.py 378b160a46709a6174b39d5dfaf9cd2760a6f88816054318b2910b816fb8798e
+```
+
+**Output:**
 ```text
 ======================================================================
   INDEPENDENT PROOF RE-VERIFICATION (POLYGON AMOY + IPFS)
 ======================================================================
-  BLOCKCHAIN HASH : a3f48c909e235be8...
-  LOCAL HASH      : a3f48c909e235be8...
-  IPFS CID        : QmYwAPJzv5CZsnA625s3Xf2nemtYgPpHdWEz79ojWnPbdG
+  BLOCKCHAIN HASH : 378b160a46709a6174b39d5dfaf9cd2760a6f88816054318b2910b816fb8798e
+  LOCAL HASH      : 378b160a46709a6174b39d5dfaf9cd2760a6f88816054318b2910b816fb8798e
+  IPFS CID        : QmT6LL9h8RXk41Lnta49RY2oLib99krTfNfJyY3RRtae2b
   NETWORK         : Polygon Amoy (Chain ID 80002)
-  SUBMITTER       : 0x71C...
-  TIMESTAMP       : 2026-09-04 08:30:00 UTC
-  RESULT          : VALID
+  SUBMITTER       : 0xDDc96a25A85849a3803d8cd690c0B8D8971aacbf
+  RESULT          : VALID (Bit-for-bit cryptographic match)
 ======================================================================
 ```
 
-### C. Cryptographic Tamper-Evidence Demo
-Demonstrate that modifying even a single character in the candidate source URL or face similarity score breaks cryptographic validation against Polygon Amoy:
+### C. Multi-Scenario Tamper-Evidence Demonstration
+Demonstrates that altering any metadata (URL, similarity score, platform) breaks cryptographic validation against the blockchain anchor:
 ```bash
-python tamper_demo.py <evidence_sha256_hash>
-```
-
-**Example output:**
-```text
-===========================================================================
-  TAMPER DETECTION RESULTS
-===========================================================================
-  [A] ORIGINAL RECORD VERIFICATION:
-      Blockchain Hash : a3f48c909e235be8...
-      Local Hash      : a3f48c909e235be8...
-      Result          : VALID (Bit-for-bit cryptographic match)
-
-  [B] TAMPERED RECORD VERIFICATION:
-      Blockchain Hash : a3f48c909e235be8...
-      Tampered Hash   : 7d1b329cf551e4aa...
-      Result          : TAMPER DETECTED!
-===========================================================================
+python tamper_demo.py 378b160a46709a6174b39d5dfaf9cd2760a6f88816054318b2910b816fb8798e
 ```
 
 ### D. Run Automated Test Suite
@@ -187,68 +175,73 @@ pytest tests/ -v
 
 ---
 
-## 6. Decision Engine & Threshold Calibration
+## 6. Decision Engine & Separation Metrics
 
-ArcFace cosine similarities for Buffalo_l embeddings typically exhibit:
-- **Same individual under varied pose/lighting**: `0.40` to `0.85+`
-- **Different individuals / random pairs**: `< 0.25`
-- **Ambiguous / partial match**: `0.30` to `0.40`
-
-### Multi-Tier Decision System:
+### Multi-Tier Classification:
 | Status | Condition | Meaning |
 | :--- | :--- | :--- |
-| **`VERIFIED`** | `similarity >= VERIFIED_THRESHOLD` (default 0.40) | High-confidence face similarity confirming discovery match. |
-| **`REVIEW`** | `0.30 <= similarity < 0.40` | Moderate face similarity; flagged for manual inspection. |
-| **`REJECTED`** | `similarity < REVIEW_THRESHOLD` (default 0.30) | Insufficient facial similarity; rejected as non-matching. |
+| **`VERIFIED`** | `similarity >= VERIFIED_THRESHOLD` (0.40) & quality pass | High-confidence biometric similarity confirming candidate match. |
+| **`REVIEW`** | `0.30 <= similarity < 0.40` or degraded quality | Moderate similarity; flagged for manual inspection. |
+| **`REJECTED`** | `similarity < REVIEW_THRESHOLD` (0.30) | Insufficient facial similarity; rejected as non-matching. |
 
-*Note: Thresholds are configurable heuristics tuned for demonstration sensitivity and should not be treated as absolute biometric identity certifications.*
+### Separation Margin Analysis:
+$$\text{Separation Margin} = \text{Similarity}_{\text{Best Verified}} - \text{Similarity}_{\text{Best Rejected}}$$
+- A wide separation margin (e.g. $> 0.30$) demonstrates that the selected subject clearly stands apart from non-matching candidates.
+- A narrow margin indicates that the decision boundary warrants manual review.
+
+*Note: Thresholds are configurable application heuristics and do not constitute absolute biometric identity guarantees.*
 
 ---
 
 ## 7. Deterministic Evidence Manifest Schema (RFC-8785)
 
-The evidence manifest captures complete provenance:
+The canonical evidence manifest captures complete discovery and verification provenance:
 ```json
 {
-  "schema_version": "1.0.0",
-  "record_timestamp": 1741160000,
+  "schema_version": "1.1.0",
+  "record_timestamp": 1788542113,
   "face": {
     "algorithm": "InsightFace buffalo_l",
     "model": "ArcFace",
     "dimension": 512,
     "dtype": "float32",
     "normalized": true,
-    "embedding_hash": "64_hex_character_sha256_of_512d_float32_bytes"
+    "embedding_hash": "892007cb66327f837bafe0bca6fa9dfa3dcde86b3bfd1849b8506b1cbabfcf15",
+    "selected_face_index": 0,
+    "query_image_quality": 0.8812
   },
   "search": {
     "provider": "SerpApi",
     "engine": "google_lens",
-    "query_image_cid": "QmQueryCID...",
-    "discovery_timestamp": 1741160000,
-    "total_candidates_discovered": 18,
-    "usable_images_evaluated": 12
+    "query_image_cid": "QmW8je2RUShfuHnEeqy5Rdgadg73vC1WS2uGUfPmdb3aSt",
+    "discovery_timestamp": 1788542113,
+    "total_candidates_discovered": 59,
+    "usable_images_evaluated": 59
   },
   "candidate": {
-    "source_url": "https://www.instagram.com/p/...",
-    "source_title": "Post Title / Caption",
-    "domain": "instagram.com",
-    "platform": "Instagram",
-    "search_rank": 1,
+    "source_url": "https://www.pinterest.com/savedbyhimalway/tom-hanks/",
+    "source_title": "Tom Hanks Pins - Public Social Content",
+    "domain": "pinterest.com",
+    "platform": "Pinterest",
+    "search_rank": 22,
     "thumbnail_url": "https://...",
     "thumbnail_sha256": "64_hex_thumbnail_hash"
   },
   "verification": {
-    "face_similarity_score": 0.8642,
+    "face_similarity_score": 0.9471,
     "verified_threshold": 0.40,
     "review_threshold": 0.30,
     "decision": "VERIFIED",
-    "decision_reason": "High ArcFace embedding cosine similarity (0.8642 >= 0.40)",
-    "face_detection_confidence": 0.9821,
-    "candidate_face_count": 1
+    "decision_reason": "Face similarity (0.9471 >= 0.40) exceeds verified threshold and candidate passed quality checks",
+    "face_detection_confidence": 0.9124,
+    "candidate_face_count": 1,
+    "candidate_image_quality": 0.8361,
+    "separation_margin": 0.7144,
+    "margin_interpretation": "Clear separation: Strong differentiation between matching subject and non-matching candidates"
   },
   "integrity": {
     "canonicalization_method": "RFC-8785 canonical JSON (sorted keys, compact separators, UTF-8)",
-    "sha256_hash": "manifest_root_sha256"
+    "sha256_hash": "378b160a46709a6174b39d5dfaf9cd2760a6f88816054318b2910b816fb8798e"
   }
 }
 ```
@@ -257,7 +250,7 @@ The evidence manifest captures complete provenance:
 
 ## 8. Smart Contract Design (`ProofRegistry.sol`)
 
-The `ProofRegistry` contract maintains an immutable registry of cryptographic evidence:
+The `ProofRegistry` contract maintains an immutable registry of cryptographic evidence on Polygon Amoy:
 ```solidity
 struct Proof {
     address submitter;
@@ -268,7 +261,7 @@ mapping(bytes32 => Proof) public proofs;
 ```
 - **Anti-Overwrite Protection**: Prevents overwriting previously anchored evidence proofs (`require(proofs[dataHash].timestamp == 0, "Already registered")`).
 - **Audit Event**: Emits `event ProofRegistered(bytes32 indexed dataHash, string ipfsCID, address indexed submitter, uint256 timestamp)`.
-- **Minimal Footprint**: Only cryptographic hashes and CIDs are stored on-chain to minimize gas costs and avoid placing unnecessary personal data on a public ledger.
+- **Minimal Footprint**: Only cryptographic hashes and IPFS CIDs are stored on-chain to minimize gas costs and prevent placing personal data on a public ledger.
 
 ---
 
@@ -291,23 +284,25 @@ mapping(bytes32 => Proof) public proofs;
 │   └── deploy.js               # Hardhat deployment script for Polygon Amoy
 ├── pipeline/
 │   ├── __init__.py
-│   ├── face_id.py              # InsightFace ArcFace 512-d embeddings & normalization
+│   ├── face_id.py              # InsightFace ArcFace 512-d embeddings, quality scoring & multi-face
 │   ├── search.py               # SerpApi Google Lens discovery & platform classifier
-│   ├── fingerprint.py          # RFC-8785 canonical evidence manifest & SHA-256
+│   ├── fingerprint.py          # RFC-8785 canonical evidence manifest, separation margins & SHA-256
 │   ├── ipfs_store.py           # Pinata IPFS integration with multi-gateway fallback
 │   ├── chain.py                # Web3.py Polygon Amoy interaction & EIP-1559 gas
-│   └── main.py                 # 9-stage CLI orchestrator
+│   └── main.py                 # 9-stage CLI orchestrator with multi-face & quality gates
 ├── tests/
 │   ├── __init__.py
-│   └── test_pipeline.py        # 28-test automated pytest suite
+│   ├── test_pipeline.py        # 31-test automated pytest suite
+│   ├── preflight_check.py      # Live preflight credential & connectivity validation
+│   └── validate_stages.py      # Stage-by-stage pipeline integration validation
 ├── demo/
 │   ├── README.md
-│   └── sample_face.jpg         # Sample test image for live verification
+│   ├── public_face_demo.jpg    # Consenting test image for live verification
+│   └── sample_face.jpg         # Sample test image for offline unit tests
 ├── verify.py                   # Standalone independent proof re-verification
-├── tamper_demo.py              # Cryptographic tamper detection demonstration
+├── tamper_demo.py              # Cryptographic tamper detection demonstration (multi-scenario)
 ├── hardhat.config.js           # Hardhat network configuration (Polygon Amoy)
 ├── package.json                # Node dependencies & compile/deploy scripts
 ├── requirements.txt            # Python dependencies
 └── README.md                   # System documentation
 ```
-

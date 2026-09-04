@@ -1,6 +1,9 @@
 """Stage-by-stage pipeline validation test."""
 import copy
 import json
+import os
+import sys
+sys.path.insert(0, os.path.abspath("."))
 import numpy as np
 from pipeline.face_id import analyze_face, cosine_similarity, hash_embedding
 from pipeline.fingerprint import build_evidence_manifest, sha256_of_json

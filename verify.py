@@ -73,7 +73,7 @@ def verify(data_hash_hex: str) -> bool:
     print(f"  NETWORK         : Polygon Amoy (Chain ID 80002)")
     print(f"  SUBMITTER       : {submitter}")
     print(f"  TIMESTAMP       : {date_str}")
-    print(f"  RESULT          : {'VALID' if is_valid else 'TAMPER DETECTED'}")
+    print(f"  RESULT          : {'VALID (Bit-for-bit cryptographic match)' if is_valid else 'TAMPER DETECTED'}")
     print("=" * 70)
 
     # Display provenance if manifest has standard schema
@@ -82,12 +82,16 @@ def verify(data_hash_hex: str) -> bool:
     face = record.get("face", {})
 
     print("\n  Provenanced Evidence Metadata:")
-    print(f"  - Source URL        : {cand.get('source_url', 'N/A')}")
-    print(f"  - Platform / Domain : {cand.get('platform', 'N/A')} ({cand.get('domain', 'N/A')})")
-    print(f"  - Face Similarity   : {verif.get('face_similarity_score', 'N/A')}")
-    print(f"  - Decision Status   : [{verif.get('decision', 'N/A')}] - {verif.get('decision_reason', '')}")
-    print(f"  - Face Algorithm    : {face.get('model', 'ArcFace')} ({face.get('algorithm', 'buffalo_l')})")
-    print(f"  - Embedding Hash    : {face.get('embedding_hash', 'N/A')[:24]}...")
+    print(f"  - Source URL          : {cand.get('source_url', 'N/A')}")
+    print(f"  - Platform / Domain   : {cand.get('platform', 'N/A')} ({cand.get('domain', 'N/A')})")
+    print(f"  - Face Similarity     : {verif.get('face_similarity_score', 'N/A')}")
+    if verif.get("separation_margin") is not None:
+        print(f"  - Separation Margin   : {verif.get('separation_margin')} ({verif.get('margin_interpretation', '')})")
+    print(f"  - Decision Status     : [{verif.get('decision', 'N/A')}] - {verif.get('decision_reason', '')}")
+    if verif.get("candidate_image_quality") is not None:
+        print(f"  - Candidate Quality   : {verif.get('candidate_image_quality')}")
+    print(f"  - Face Algorithm      : {face.get('model', 'ArcFace')} ({face.get('algorithm', 'buffalo_l')})")
+    print(f"  - Embedding Hash      : {face.get('embedding_hash', 'N/A')[:24]}...")
     print("=" * 70 + "\n")
 
     return is_valid
@@ -99,4 +103,3 @@ if __name__ == "__main__":
         sys.exit(1)
     success = verify(sys.argv[1])
     sys.exit(0 if success else 1)
-

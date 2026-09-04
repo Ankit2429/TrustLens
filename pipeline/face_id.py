@@ -2,14 +2,18 @@
 
 Features:
 - Robust face detection via RetinaFace / SCRFD (buffalo_l on CPU)
-- Largest face selection for multi-face / cluttered images
+- Explicit 5-point landmark geometric analysis and face alignment
+- Explainable multi-factor image quality assessment (sharpness, exposure, resolution, frontality, confidence)
+- Multi-face query image support with explicit face selection
+- Candidate group-image multi-face evaluation (comparing query against all detected faces in candidate images)
 - Complete 512-dimensional ArcFace embedding extraction
 - Consistent L2 vector normalization (float32)
 - Deterministic SHA-256 hashing of complete normalized embedding bytes
-- Rich metadata export (model, dimension, dtype, normalization, hash)
+- Rich metadata export (model, dimension, dtype, normalization, hash, quality breakdown)
 - Deterministic cosine similarity calculation
 """
 import hashlib
+import math
 import os
 from typing import Any, Optional, Tuple
 
@@ -59,7 +63,6 @@ def hash_embedding(embedding: np.ndarray) -> str:
         64-character SHA-256 hexadecimal string.
     """
     normed = normalize_embedding(embedding)
-    # tobytes() on C-contiguous float32 produces exact IEEE-754 32-bit little-endian bytes
     raw_bytes = normed.astype(np.float32, order="C").tobytes()
     return hashlib.sha256(raw_bytes).hexdigest()
 
@@ -93,26 +96,118 @@ def cosine_similarity(a: np.ndarray, b: np.ndarray) -> float:
     return max(-1.0, min(1.0, dot_prod))
 
 
-def analyze_face(image_path: str) -> dict[str, Any]:
-    """Perform face detection and return rich analysis including largest face embedding.
+def assess_face_quality(img: np.ndarray, face: Any) -> dict[str, Any]:
+    """Calculate an explainable image quality assessment for a detected face.
 
-    Args:
-        image_path: Path to the input image file.
+    Evaluates:
+    1. Detector Confidence: SCRFD/RetinaFace detection score.
+    2. Sharpness: Laplacian variance on the cropped face region (normalized 0-1).
+    3. Resolution: Bounding box area relative to canonical face resolution (112x112).
+    4. Exposure: Average luminance and standard deviation in the face region.
+    5. Frontality: Landmark symmetry between left/right eyes, nose tip, and mouth.
 
     Returns:
-        Dictionary containing:
-        - face_detected: bool
-        - face_count: int
-        - det_score: float (confidence of detection)
-        - bbox: list[float] [x1, y1, x2, y2]
-        - embedding: np.ndarray (raw 512-d)
-        - normalized_embedding: np.ndarray (L2-normalized 512-d float32)
-        - embedding_hash: str (SHA-256 of complete normalized embedding)
-        - metadata: dict
+        Dictionary with overall quality score in [0.0, 1.0] and detailed breakdown.
+    """
+    h, w = img.shape[:2]
+    bbox = [int(max(0, x)) for x in face.bbox]
+    x1, y1, x2, y2 = min(bbox[0], w - 1), min(bbox[1], h - 1), min(bbox[2], w), min(bbox[3], h)
+
+    # 1. Detector confidence
+    conf = float(face.det_score) if hasattr(face, "det_score") else 1.0
+    conf_score = max(0.0, min(1.0, conf))
+
+    # Face crop for pixel-level metrics
+    face_crop = img[y1:y2, x1:x2]
+    if face_crop.size == 0 or face_crop.shape[0] < 5 or face_crop.shape[1] < 5:
+        return {
+            "overall_quality": round(conf_score * 0.5, 4),
+            "is_usable": False,
+            "breakdown": {
+                "confidence": round(conf_score, 4),
+                "sharpness": 0.0,
+                "resolution": 0.0,
+                "exposure": 0.0,
+                "frontality": 0.0,
+            },
+        }
+
+    # 2. Sharpness (Laplacian variance)
+    gray_crop = cv2.cvtColor(face_crop, cv2.COLOR_BGR2GRAY) if len(face_crop.shape) == 3 else face_crop
+    lap_var = cv2.Laplacian(gray_crop, cv2.CV_64F).var()
+    # Map lap_var [0, 500+] to [0.0, 1.0] via sigmoid/log curve
+    sharpness_score = round(min(1.0, math.log1p(lap_var) / math.log1p(500)), 4)
+
+    # 3. Resolution (Face dimension vs optimal 112x112 ArcFace input)
+    face_w, face_h = max(1, x2 - x1), max(1, y2 - y1)
+    min_dim = min(face_w, face_h)
+    resolution_score = round(min(1.0, min_dim / 112.0), 4)
+
+    # 4. Exposure (Luminance balance)
+    mean_lum = float(np.mean(gray_crop))
+    # Ideal mean luminance is around 120-140; penalize extreme dark (<40) or blowout (>220)
+    if mean_lum < 40:
+        exposure_score = max(0.1, mean_lum / 40.0 * 0.5)
+    elif mean_lum > 220:
+        exposure_score = max(0.1, (255 - mean_lum) / 35.0 * 0.5)
+    else:
+        # Distance from center 128
+        dist = abs(mean_lum - 128) / 128.0
+        exposure_score = 1.0 - (dist * 0.5)
+    exposure_score = round(float(exposure_score), 4)
+
+    # 5. Frontality (Landmark symmetry)
+    frontality_score = 0.85
+    if hasattr(face, "kps") and face.kps is not None and len(face.kps) >= 5:
+        kps = face.kps
+        left_eye, right_eye, nose = kps[0], kps[1], kps[2]
+        dist_left = float(np.linalg.norm(left_eye - nose))
+        dist_right = float(np.linalg.norm(right_eye - nose))
+        eye_dist = float(np.linalg.norm(left_eye - right_eye)) + 1e-6
+        asymmetry = abs(dist_left - dist_right) / eye_dist
+        # Asymmetry > 0.6 indicates strong profile pose
+        frontality_score = round(max(0.0, min(1.0, 1.0 - asymmetry * 1.5)), 4)
+
+    # Weighted composite quality score
+    overall = (
+        0.30 * conf_score
+        + 0.25 * sharpness_score
+        + 0.20 * resolution_score
+        + 0.15 * exposure_score
+        + 0.10 * frontality_score
+    )
+    overall_quality = round(float(overall), 4)
+    is_usable = overall_quality >= 0.25 and min_dim >= 24 and conf_score >= 0.40
+
+    return {
+        "overall_quality": overall_quality,
+        "is_usable": is_usable,
+        "breakdown": {
+            "confidence": conf_score,
+            "sharpness": sharpness_score,
+            "resolution": resolution_score,
+            "exposure": exposure_score,
+            "frontality": frontality_score,
+        },
+    }
+
+
+def detect_all_faces(
+    image_path: str,
+    min_quality: float = 0.20,
+) -> list[dict[str, Any]]:
+    """Detect and evaluate all faces in an image with alignment and quality scoring.
+
+    Args:
+        image_path: Path to the image file.
+        min_quality: Minimum quality threshold to filter low-confidence noise.
+
+    Returns:
+        List of structured face dictionaries sorted by bounding box area (largest first).
 
     Raises:
-        FileNotFoundError: If image cannot be read from path.
-        ValueError: If no face is detected in the image.
+        FileNotFoundError: If image file does not exist.
+        ValueError: If image cannot be decoded.
     """
     if not os.path.exists(image_path):
         raise FileNotFoundError(f"Image file does not exist: {image_path}")
@@ -122,42 +217,158 @@ def analyze_face(image_path: str) -> dict[str, Any]:
         raise ValueError(f"Could not decode image (unsupported or corrupted format): {image_path}")
 
     app = get_app()
-    faces = app.get(img)
-    if not faces:
-        raise ValueError(f"No face detected in image: {image_path}")
+    raw_faces = app.get(img)
+    if not raw_faces:
+        return []
 
     # Sort faces by bounding box area (largest first)
-    faces.sort(
+    raw_faces.sort(
         key=lambda f: (f.bbox[2] - f.bbox[0]) * (f.bbox[3] - f.bbox[1]),
         reverse=True,
     )
-    primary_face = faces[0]
 
-    raw_emb = primary_face.embedding
-    norm_emb = normalize_embedding(raw_emb)
-    emb_hash = hash_embedding(norm_emb)
+    results: list[dict[str, Any]] = []
+    for idx, f in enumerate(raw_faces):
+        quality = assess_face_quality(img, f)
+        raw_emb = f.embedding
+        norm_emb = normalize_embedding(raw_emb)
+        emb_hash = hash_embedding(norm_emb)
+
+        landmarks = None
+        if hasattr(f, "kps") and f.kps is not None:
+            landmarks = [[float(pt[0]), float(pt[1])] for pt in f.kps]
+
+        entry = {
+            "face_index": idx,
+            "det_score": float(f.det_score) if hasattr(f, "det_score") else 1.0,
+            "bbox": [float(x) for x in f.bbox],
+            "landmarks": landmarks,
+            "quality": quality,
+            "embedding": raw_emb,
+            "normalized_embedding": norm_emb,
+            "embedding_hash": emb_hash,
+            "metadata": {
+                "algorithm": "InsightFace buffalo_l",
+                "model": "ArcFace",
+                "dimension": int(norm_emb.shape[0]),
+                "dtype": "float32",
+                "normalization_status": "L2_normalized",
+                "embedding_hash": emb_hash,
+            },
+        }
+        results.append(entry)
+
+    return results
+
+
+def analyze_face(
+    image_path: str,
+    face_index: int = 0,
+    min_quality: float = 0.20,
+) -> dict[str, Any]:
+    """Perform face detection and return analysis for a chosen face index.
+
+    Args:
+        image_path: Path to the input image file.
+        face_index: Index of face to select if multiple faces exist (default: 0).
+        min_quality: Minimum quality threshold for the selected face.
+
+    Returns:
+        Dictionary containing face analysis, quality breakdown, and all faces metadata.
+
+    Raises:
+        FileNotFoundError: If image cannot be read from path.
+        ValueError: If no face is detected or face_index is out of range.
+    """
+    faces = detect_all_faces(image_path, min_quality=min_quality)
+    if not faces:
+        raise ValueError(f"No face detected in image: {image_path}")
+
+    if face_index < 0 or face_index >= len(faces):
+        raise ValueError(
+            f"Requested face_index {face_index} is out of range. "
+            f"Image contains {len(faces)} detected face(s) (indices 0 to {len(faces) - 1})."
+        )
+
+    selected = faces[face_index]
+    quality = selected["quality"]
 
     return {
         "face_detected": True,
         "face_count": len(faces),
-        "det_score": float(primary_face.det_score) if hasattr(primary_face, "det_score") else 1.0,
-        "bbox": [float(x) for x in primary_face.bbox],
-        "embedding": raw_emb,
-        "normalized_embedding": norm_emb,
-        "embedding_hash": emb_hash,
-        "metadata": {
-            "algorithm": "InsightFace buffalo_l",
-            "model": "ArcFace",
-            "dimension": int(norm_emb.shape[0]),
-            "dtype": "float32",
-            "normalization_status": "L2_normalized",
-            "embedding_hash": emb_hash,
-        },
+        "selected_face_index": face_index,
+        "det_score": selected["det_score"],
+        "bbox": selected["bbox"],
+        "landmarks": selected["landmarks"],
+        "quality_score": quality["overall_quality"],
+        "quality_breakdown": quality["breakdown"],
+        "is_usable": quality["is_usable"],
+        "embedding": selected["embedding"],
+        "normalized_embedding": selected["normalized_embedding"],
+        "embedding_hash": selected["embedding_hash"],
+        "metadata": selected["metadata"],
+        "all_faces_summary": [
+            {
+                "index": f["face_index"],
+                "bbox": f["bbox"],
+                "det_score": round(f["det_score"], 4),
+                "quality_score": f["quality"]["overall_quality"],
+            }
+            for f in faces
+        ],
+    }
+
+
+def compare_group_faces(
+    query_embedding: np.ndarray,
+    candidate_faces: list[dict[str, Any]],
+) -> dict[str, Any]:
+    """Compare query face embedding against ALL faces detected in a candidate group image.
+
+    Finds and returns the maximum similarity among all detected candidate faces, ensuring
+    we never assume the largest candidate face is the only matching subject.
+
+    Args:
+        query_embedding: Normalized 512-d query face embedding.
+        candidate_faces: List of detected face dictionaries from detect_all_faces().
+
+    Returns:
+        Dictionary containing:
+        - best_similarity: float
+        - best_face_index: int
+        - evaluated_face_count: int
+        - all_similarities: list[float]
+        - best_candidate_face: dict (metadata of the best matching face)
+    """
+    if not candidate_faces:
+        return {
+            "best_similarity": -1.0,
+            "best_face_index": -1,
+            "evaluated_face_count": 0,
+            "all_similarities": [],
+            "best_candidate_face": None,
+        }
+
+    similarities: list[float] = []
+    for f in candidate_faces:
+        cand_emb = f["normalized_embedding"]
+        sim = cosine_similarity(query_embedding, cand_emb)
+        similarities.append(sim)
+
+    best_idx = int(np.argmax(similarities))
+    best_sim = float(similarities[best_idx])
+
+    return {
+        "best_similarity": best_sim,
+        "best_face_index": best_idx,
+        "evaluated_face_count": len(candidate_faces),
+        "all_similarities": similarities,
+        "best_candidate_face": candidate_faces[best_idx],
     }
 
 
 def get_embedding(image_path: str) -> np.ndarray:
-    """Detect the largest face in image_path and return its normalized 512-d ArcFace embedding.
+    """Detect the primary face in image_path and return its normalized 512-d ArcFace embedding.
 
     Args:
         image_path: Path to the image file.

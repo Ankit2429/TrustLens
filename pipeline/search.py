@@ -6,6 +6,7 @@ YouTube, TikTok, Pinterest, News/Media, General Web).
 """
 import os
 import re
+import time
 from typing import Any, Optional
 from urllib.parse import urlparse
 
@@ -39,10 +40,8 @@ def extract_domain(url: str) -> str:
     try:
         parsed = urlparse(url)
         netloc = parsed.netloc.lower()
-        # Strip port if present
         if ":" in netloc:
             netloc = netloc.split(":")[0]
-        # Strip leading 'www.'
         if netloc.startswith("www."):
             netloc = netloc[4:]
         return netloc
@@ -86,6 +85,7 @@ def reverse_image_search(public_image_url: str) -> list[dict[str, Any]]:
         "api_key": api_key,
     }
 
+    req_start = int(time.time())
     try:
         resp = requests.get(SERPAPI_URL, params=params, timeout=35)
     except requests.RequestException as e:
@@ -132,6 +132,7 @@ def reverse_image_search(public_image_url: str) -> list[dict[str, Any]]:
             "platform": platform,
             "thumbnail": match.get("thumbnail"),
             "source": match.get("source", domain or "Web"),
+            "discovery_timestamp": req_start,
         }
         candidates.append(candidate)
 
@@ -142,4 +143,3 @@ def filter_social_matches(matches: list[dict[str, Any]]) -> list[dict[str, Any]]
     """Filter candidate matches to prioritize recognized social media platforms."""
     social_platforms = {"Instagram", "LinkedIn", "Facebook", "X (Twitter)", "Reddit", "YouTube", "TikTok", "Pinterest"}
     return [m for m in matches if m.get("platform") in social_platforms]
-
