@@ -123,8 +123,20 @@ npm run deploy:amoy
 
 ## 5. Usage & CLI Commands
 
-### A. Run Full TrustLens Pipeline
-To run the complete 9-stage pipeline on a face image:
+### A. Launch Interactive Web Application Dashboard
+To launch the interactive local TrustLens dashboard:
+```bash
+python web_server.py --port 8080
+```
+Open **[http://localhost:8080](http://localhost:8080)** in your browser to:
+- Upload face photos and inspect interactive 5-point landmark bounding boxes and multi-factor quality scores.
+- Select target subjects in multi-face photos.
+- Run live SerpApi visual discovery with multi-source candidate filtering and separation margin analysis.
+- Inspect canonical RFC-8785 JSON manifests and Polygon Amoy on-chain proof confirmations.
+- Run independent blockchain re-verification and interactive cryptographic tamper simulations.
+
+### B. Run Full CLI Pipeline
+To run the complete 9-stage pipeline on a face image from the terminal:
 ```bash
 python -m pipeline.main demo/public_face_demo.jpg
 ```

@@ -1,0 +1,390 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>TrustLens — Face Identification & Blockchain Verification</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <!-- Background Glow & Grid -->
+  <div class="bg-glow"></div>
+  <div class="bg-grid"></div>
+
+  <!-- Top Navigation Header -->
+  <header class="header">
+    <div class="header-container">
+      <div class="logo-area">
+        <div class="logo-badge">
+          <svg class="logo-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+            <circle cx="12" cy="11" r="3"/>
+          </svg>
+        </div>
+        <div class="logo-text">
+          <span class="brand-name">TrustLens</span>
+          <span class="brand-tag">Task 3 · Biometric Blockchain Verification</span>
+        </div>
+      </div>
+
+      <!-- Live Network Badges -->
+      <div class="status-bar" id="statusBar">
+        <div class="status-pill status-pill-active" id="amoyPill">
+          <span class="pulse-dot"></span>
+          <span class="pill-label">Polygon Amoy</span>
+          <span class="pill-value" id="amoyBlock">#...</span>
+        </div>
+        <div class="status-pill" id="contractPill">
+          <span class="pill-label">Contract</span>
+          <a class="pill-link" id="contractLink" href="#" target="_blank">0x6D03...3c5F</a>
+        </div>
+        <div class="status-pill" id="ipfsPill">
+          <span class="pulse-dot dot-cyan"></span>
+          <span class="pill-label">IPFS Gateway</span>
+          <span class="pill-value">Pinata Ready</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Navigation Tabs -->
+    <nav class="nav-tabs">
+      <button class="nav-tab active" data-tab="pipelineTab" id="tabPipelineBtn">
+        <svg class="tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="m9 12 2 2 4-4"/></svg>
+        1. Live Pipeline & Discovery
+      </button>
+      <button class="nav-tab" data-tab="verifyTab" id="tabVerifyBtn">
+        <svg class="tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg>
+        2. Independent On-Chain Verification
+      </button>
+      <button class="nav-tab" data-tab="tamperTab" id="tabTamperBtn">
+        <svg class="tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+        3. Cryptographic Tamper Simulator
+      </button>
+      <button class="nav-tab" data-tab="archTab" id="tabArchBtn">
+        <svg class="tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
+        4. Architecture & Technical Specs
+      </button>
+    </nav>
+  </header>
+
+  <!-- Main Container -->
+  <main class="main-content">
+
+    <!-- ============================================================ -->
+    <!-- TAB 1: LIVE PIPELINE & DISCOVERY -->
+    <!-- ============================================================ -->
+    <section class="tab-pane active" id="pipelineTab">
+      <div class="grid-2col">
+        
+        <!-- Left Column: Input, Face Analysis & Quality Gate -->
+        <div class="card glass-card">
+          <div class="card-header">
+            <h2 class="card-title">
+              <span class="step-badge">1</span> Input Face Analysis & Quality Gate
+            </h2>
+            <button class="btn btn-secondary btn-sm" id="loadDemoBtn">Load Consenting Demo Face</button>
+          </div>
+
+          <!-- Dropzone -->
+          <div class="dropzone" id="dropzone">
+            <input type="file" id="fileInput" accept="image/jpeg,image/png,image/webp" style="display: none;">
+            <div class="dropzone-content" id="dropzonePrompt">
+              <svg class="upload-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/>
+              </svg>
+              <p class="dropzone-title">Drag & drop consenting face photo or <span class="accent-link">browse</span></p>
+              <p class="dropzone-subtitle">JPEG, PNG, or WEBP (Buffalo_l / ArcFace 512-d)</p>
+            </div>
+            <!-- Canvas Preview -->
+            <div class="preview-container" id="previewContainer" style="display: none;">
+              <canvas id="faceCanvas"></canvas>
+              <div class="preview-overlay-info" id="previewOverlayInfo"></div>
+            </div>
+          </div>
+
+          <!-- Multi-Face Selector (shown if multiple faces) -->
+          <div class="multi-face-bar" id="multiFaceBar" style="display: none;">
+            <label class="input-label">Select Target Subject Face:</label>
+            <div class="face-chips" id="faceChipsContainer"></div>
+          </div>
+
+          <!-- Quality Metrics Breakdown -->
+          <div class="quality-card" id="qualityCard" style="display: none;">
+            <div class="quality-header">
+              <span class="quality-label">Image Quality Assessment</span>
+              <span class="quality-score-badge" id="overallQualityBadge">Score: 0.00</span>
+            </div>
+            <div class="quality-grid">
+              <div class="quality-metric">
+                <div class="metric-head"><span>Sharpness</span><span id="qSharp">0.00</span></div>
+                <div class="progress-track"><div class="progress-bar" id="barSharp"></div></div>
+              </div>
+              <div class="quality-metric">
+                <div class="metric-head"><span>Exposure</span><span id="qExpo">0.00</span></div>
+                <div class="progress-track"><div class="progress-bar" id="barExpo"></div></div>
+              </div>
+              <div class="quality-metric">
+                <div class="metric-head"><span>Resolution</span><span id="qRes">0.00</span></div>
+                <div class="progress-track"><div class="progress-bar" id="barRes"></div></div>
+              </div>
+              <div class="quality-metric">
+                <div class="metric-head"><span>Frontality</span><span id="qFront">0.00</span></div>
+                <div class="progress-track"><div class="progress-bar" id="barFront"></div></div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Embedding Fingerprint -->
+          <div class="fingerprint-box" id="fingerprintBox" style="display: none;">
+            <div class="fp-row">
+              <span class="fp-label">ArcFace 512-d Hash:</span>
+              <code class="fp-hash" id="queryEmbeddingHash">...</code>
+            </div>
+          </div>
+
+          <!-- Action Buttons -->
+          <div class="action-row">
+            <button class="btn btn-primary btn-block" id="runPipelineBtn" disabled>
+              <svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+              Execute Visual Discovery & Blockchain Verification
+            </button>
+          </div>
+        </div>
+
+        <!-- Right Column: Verification Results & Separation Margin -->
+        <div class="card glass-card">
+          <div class="card-header">
+            <h2 class="card-title">
+              <span class="step-badge">2</span> Multi-Source Match & Separation Analysis
+            </h2>
+            <div class="filter-group" id="platformFilterGroup" style="display: none;">
+              <button class="filter-pill active" data-filter="ALL">All</button>
+              <button class="filter-pill" data-filter="SOCIAL">Social Only</button>
+            </div>
+          </div>
+
+          <!-- Empty State -->
+          <div class="empty-state" id="resultsEmptyState">
+            <svg class="empty-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>
+            <p class="empty-title">Awaiting Image Input</p>
+            <p class="empty-subtitle">Upload a consenting face image or load the demo sample to execute visual search and on-chain anchoring.</p>
+          </div>
+
+          <!-- Loading Spinner -->
+          <div class="loading-state" id="pipelineLoading" style="display: none;">
+            <div class="cyber-spinner"></div>
+            <p class="loading-title" id="loadingStageText">Evaluating ArcFace Biometrics & Querying Google Lens...</p>
+            <p class="loading-subtitle">Querying SerpApi, evaluating candidate thumbnails, and registering on Polygon Amoy</p>
+          </div>
+
+          <!-- Separation Margin Card -->
+          <div class="separation-banner" id="separationBanner" style="display: none;">
+            <div class="separation-stats">
+              <div class="sep-stat">
+                <span class="sep-label">Best Verified Sim</span>
+                <span class="sep-val accent-green" id="sepBestVerified">0.00</span>
+              </div>
+              <div class="sep-arrow">−</div>
+              <div class="sep-stat">
+                <span class="sep-label">Best Rejected Sim</span>
+                <span class="sep-val accent-red" id="sepBestRejected">0.00</span>
+              </div>
+              <div class="sep-equal">=</div>
+              <div class="sep-stat highlight">
+                <span class="sep-label">Separation Margin Gap</span>
+                <span class="sep-val accent-cyan" id="sepMarginVal">0.00</span>
+              </div>
+            </div>
+            <p class="sep-interp" id="sepInterp">...</p>
+          </div>
+
+          <!-- Discovered Candidates Grid -->
+          <div class="candidates-container" id="candidatesContainer" style="display: none;">
+            <div class="candidates-grid" id="candidatesGrid"></div>
+          </div>
+
+        </div>
+      </div>
+
+      <!-- Bottom Panel: Anchored Proof & Manifest Viewer -->
+      <div class="card glass-card proof-card" id="proofSummaryCard" style="display: none;">
+        <div class="card-header">
+          <h2 class="card-title">
+            <span class="step-badge">3</span> Polygon Amoy Immutable Proof & Evidence Manifest
+          </h2>
+          <div class="proof-links" id="proofLinks"></div>
+        </div>
+
+        <div class="proof-grid">
+          <div class="proof-field">
+            <span class="pf-label">Evidence Canonical SHA-256</span>
+            <code class="pf-val highlight-purple" id="manifestHashDisplay">...</code>
+          </div>
+          <div class="proof-field">
+            <span class="pf-label">IPFS Evidence CID</span>
+            <code class="pf-val highlight-cyan" id="manifestCidDisplay">...</code>
+          </div>
+          <div class="proof-field">
+            <span class="pf-label">Polygon Amoy Tx Hash</span>
+            <code class="pf-val" id="txHashDisplay">...</code>
+          </div>
+          <div class="proof-field">
+            <span class="pf-label">Smart Contract Address</span>
+            <code class="pf-val" id="contractDisplay">...</code>
+          </div>
+        </div>
+
+        <!-- Manifest JSON Collapsible -->
+        <details class="manifest-details">
+          <summary class="manifest-summary">View RFC-8785 Canonical JSON Manifest</summary>
+          <pre class="json-code" id="manifestJsonCode">{}</pre>
+        </details>
+      </div>
+    </section>
+
+    <!-- ============================================================ -->
+    <!-- TAB 2: INDEPENDENT ON-CHAIN RE-VERIFICATION -->
+    <!-- ============================================================ -->
+    <section class="tab-pane" id="verifyTab">
+      <div class="card glass-card standalone-card">
+        <div class="card-header">
+          <div>
+            <h2 class="card-title">Independent On-Chain Re-Verification</h2>
+            <p class="card-desc">Validates cryptographic proof directly from the Polygon Amoy ProofRegistry smart contract and IPFS without relying on pipeline state.</p>
+          </div>
+        </div>
+
+        <div class="verify-input-row">
+          <input type="text" class="text-input" id="verifyHashInput" placeholder="Enter 64-character SHA-256 evidence hash (e.g. 5eb2b2ac...)">
+          <button class="btn btn-primary" id="runVerifyBtn">Verify On-Chain</button>
+        </div>
+
+        <div class="quick-hashes">
+          <span class="qh-label">Quick test recent on-chain proof:</span>
+          <button class="btn-chip" id="quickProofBtn">5eb2b2ac50d9... (Pinterest Live Proof)</button>
+        </div>
+
+        <!-- Verification Results -->
+        <div class="verify-result-box" id="verifyResultBox" style="display: none;">
+          <div class="verify-status-banner" id="verifyStatusBanner">
+            <div class="vs-icon" id="verifyIcon">✓</div>
+            <div class="vs-text">
+              <h3 class="vs-title" id="verifyTitle">CRYPTOGRAPHIC INTEGRITY CONFIRMED</h3>
+              <p class="vs-sub" id="verifySub">Recomputed IPFS SHA-256 hash matches blockchain immutable anchor bit-for-bit.</p>
+            </div>
+          </div>
+
+          <div class="verify-details-grid" id="verifyDetailsGrid"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============================================================ -->
+    <!-- TAB 3: CRYPTOGRAPHIC TAMPER SIMULATOR -->
+    <!-- ============================================================ -->
+    <section class="tab-pane" id="tamperTab">
+      <div class="card glass-card standalone-card">
+        <div class="card-header">
+          <div>
+            <h2 class="card-title">Cryptographic Tamper-Evidence Simulator</h2>
+            <p class="card-desc">Proves that mutating even a single character in the discovered evidence violates the on-chain SHA-256 cryptographic hash.</p>
+          </div>
+        </div>
+
+        <div class="tamper-control-panel">
+          <div class="tamper-target">
+            <label class="input-label">Target On-Chain Proof Hash:</label>
+            <input type="text" class="text-input" id="tamperHashInput" value="5eb2b2ac50d9bd30d9b08c09395e71c3e15fb716c7e51d4843f467df91d9723c">
+          </div>
+
+          <label class="input-label">Select Deliberate Tampering Scenario:</label>
+          <div class="tamper-scenarios">
+            <label class="scenario-option">
+              <input type="radio" name="tamperType" value="url" checked>
+              <div class="scenario-card">
+                <span class="sc-title">Scenario 1: Manipulate Source URL</span>
+                <span class="sc-desc">Change candidate URL to a fake imposter profile.</span>
+              </div>
+            </label>
+            <label class="scenario-option">
+              <input type="radio" name="tamperType" value="similarity">
+              <div class="scenario-card">
+                <span class="sc-title">Scenario 2: Manipulate Similarity Score</span>
+                <span class="sc-desc">Artificially boost biometric similarity to 0.9999.</span>
+              </div>
+            </label>
+            <label class="scenario-option">
+              <input type="radio" name="tamperType" value="platform">
+              <div class="scenario-card">
+                <span class="sc-title">Scenario 3: Forged Platform Metadata</span>
+                <span class="sc-desc">Alter platform origin and verification decision status.</span>
+              </div>
+            </label>
+          </div>
+
+          <button class="btn btn-danger btn-block" id="runTamperSimBtn">
+            Simulate Tampering & Execute Cryptographic Verification
+          </button>
+        </div>
+
+        <!-- Tamper Results Display -->
+        <div class="tamper-results" id="tamperResults" style="display: none;"></div>
+      </div>
+    </section>
+
+    <!-- ============================================================ -->
+    <!-- TAB 4: ARCHITECTURE & SPECS -->
+    <!-- ============================================================ -->
+    <section class="tab-pane" id="archTab">
+      <div class="card glass-card">
+        <div class="card-header">
+          <h2 class="card-title">TrustLens Technical Architecture & Specifications</h2>
+        </div>
+        <div class="arch-content">
+          <div class="arch-col">
+            <h3 class="arch-subtitle">1. Biometric Engine</h3>
+            <ul class="arch-list">
+              <li><strong>InsightFace (buffalo_l)</strong>: SCRFD landmark face detection + ArcFace 512-d feature extraction.</li>
+              <li><strong>Normalized Embeddings</strong>: Float32 L2-normalized vectors with deterministic SHA-256 byte hashing.</li>
+              <li><strong>Multi-Face & Group Handling</strong>: Explicit face selection on queries and exhaustive group evaluation on candidate images.</li>
+              <li><strong>Quality Gate</strong>: Composite metrics (sharpness, exposure, resolution, landmark symmetry).</li>
+            </ul>
+          </div>
+          <div class="arch-col">
+            <h3 class="arch-subtitle">2. Decentralized Discovery & Storage</h3>
+            <ul class="arch-list">
+              <li><strong>SerpApi Google Lens</strong>: Multi-source discovery across supported social platforms and the indexed web.</li>
+              <li><strong>IPFS via Pinata</strong>: Content-addressed immutable storage with multi-gateway resolution fallback.</li>
+              <li><strong>RFC-8785 Canonical JSON</strong>: Deterministic key sorting and compact UTF-8 byte serialization.</li>
+            </ul>
+          </div>
+          <div class="arch-col">
+            <h3 class="arch-subtitle">3. Blockchain Proof Registry</h3>
+            <ul class="arch-list">
+              <li><strong>Polygon Amoy (Chain ID 80002)</strong>: EVM smart contract <code>ProofRegistry.sol</code> at <code>0x6D03eE0515FeeA663D6fe79F8e12dDA4C24B3c5F</code>.</li>
+              <li><strong>Anti-Overwrite Protection</strong>: Reverts duplicate registrations to prevent unauthorized rewrites.</li>
+              <li><strong>Minimal Footprint</strong>: Only cryptographic fingerprints and CIDs are anchored on-chain.</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <footer class="footer">
+    <div class="footer-container">
+      <span>TrustLens · HH Goa 2026 Task 3</span>
+      <span class="footer-separator">•</span>
+      <span>Polygon Amoy Testnet (Chain ID 80002)</span>
+      <span class="footer-separator">•</span>
+      <a href="https://github.com/Ankit2429/TrustLens.git" target="_blank" class="accent-link">GitHub Repository</a>
+    </div>
+  </footer>
+
+  <script src="app.js"></script>
+</body>
+</html>
