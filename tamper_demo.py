@@ -24,20 +24,23 @@ def run_tamper_demo(data_hash_hex: str):
         clean_hash = clean_hash[2:]
 
     print("=" * 75)
-    print("  CRYPTOGRAPHIC TAMPER-EVIDENCE DEMONSTRATION (POLYGON AMOY + IPFS)")
+    print("  CRYPTOGRAPHIC TAMPER-EVIDENCE DEMONSTRATION (BLOCKCHAIN + IPFS)")
     print("=" * 75)
 
     # 1. Fetch on-chain proof
-    print(f"\n[1/4] Retrieving authentic proof from Polygon Amoy ProofRegistry...")
+    print(f"\n[1/4] Retrieving authentic proof from ProofRegistry smart contract...")
     try:
         onchain = get_proof(clean_hash)
         ipfs_cid = onchain["ipfs_cid"]
         submitter = onchain["submitter"]
+        net_label = onchain.get("network", "Blockchain")
+        chain_id = onchain.get("chain_id", "N/A")
+        print(f"      -> Network               : {net_label} (Chain ID {chain_id})")
         print(f"      -> Blockchain Submitter : {submitter}")
         print(f"      -> Anchored IPFS CID    : {ipfs_cid}")
         print(f"      -> Anchored Hash (Chain): {clean_hash}")
     except Exception as e:
-        print(f"[-] Failed to read proof from Polygon Amoy: {e}")
+        print(f"[-] Failed to read proof from smart contract: {e}")
         sys.exit(1)
 
     # 2. Fetch authentic manifest from IPFS

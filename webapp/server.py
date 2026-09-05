@@ -44,7 +44,12 @@ from pipeline.fingerprint import (
     sha256_of_bytes,
 )
 from pipeline.ipfs_store import pin_file, pin_json, gateway_url, fetch_json
-from pipeline.chain import register_proof, get_proof, get_web3_and_contract
+from pipeline.chain import (
+    register_proof,
+    get_proof,
+    get_web3_and_contract,
+    get_blockchain_config,
+)
 from pipeline.main import (
     DEFAULT_VERIFIED_THRESHOLD,
     DEFAULT_REVIEW_THRESHOLD,
@@ -83,6 +88,7 @@ class TamperRequest(BaseModel):
 @app.get("/api/health")
 def get_health():
     """Health check returning network, RPC and contract connectivity status."""
+    cfg = get_blockchain_config()
     try:
         w3, contract = get_web3_and_contract()
         connected = w3.is_connected()
@@ -91,20 +97,25 @@ def get_health():
     except Exception as e:
         connected = False
         block = 0
-        contract_addr = os.environ.get("CONTRACT_ADDRESS", "Not configured")
+        contract_addr = cfg.get("contract_address") or "Not configured"
 
     has_serp = bool(os.environ.get("SERPAPI_KEY") and os.environ.get("SERPAPI_KEY") != "your_serpapi_key")
     has_pinata = bool(os.environ.get("PINATA_JWT") and os.environ.get("PINATA_JWT") != "your_pinata_jwt")
-    has_wallet = bool(os.environ.get("PRIVATE_KEY") and os.environ.get("PRIVATE_KEY") != "your_testnet_wallet_private_key")
+    has_wallet = bool(cfg.get("private_key") and cfg.get("private_key") not in ("your_testnet_wallet_private_key", "your_anvil_private_key"))
+
+    explorer_url = ""
+    if not cfg["is_local"] and contract_addr:
+        explorer_url = f"https://amoy.polygonscan.com/address/{contract_addr}"
 
     return {
         "status": "ok" if connected else "degraded",
-        "network": "Polygon Amoy",
-        "chain_id": 80002,
+        "network": cfg["network_label"],
+        "chain_id": cfg["chain_id"],
+        "is_local": cfg["is_local"],
         "rpc_connected": connected,
         "latest_block": block,
         "contract_address": contract_addr,
-        "explorer_url": f"https://amoy.polygonscan.com/address/{contract_addr}" if contract_addr else "",
+        "explorer_url": explorer_url,
         "thresholds": {
             "verified_threshold": DEFAULT_VERIFIED_THRESHOLD,
             "review_threshold": DEFAULT_REVIEW_THRESHOLD,
@@ -411,7 +422,8 @@ def get_result_by_hash(proof_hash: str):
             "ipfs_cid": cid,
             "submitter": submitter,
             "timestamp": ts,
-            "network": "Polygon Amoy (Chain ID 80002)",
+            "network": f"{onchain.get('network', 'Blockchain')} (Chain ID {onchain.get('chain_id', 'N/A')})",
+            "chain_id": onchain.get("chain_id"),
             "contract_address": onchain.get("contract_address", ""),
             "manifest": record,
         }

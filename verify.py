@@ -32,19 +32,21 @@ def verify(data_hash_hex: str) -> bool:
         clean_hash = clean_hash[2:]
 
     print("=" * 70)
-    print("  INDEPENDENT PROOF RE-VERIFICATION (POLYGON AMOY + IPFS)")
+    print("  INDEPENDENT PROOF RE-VERIFICATION (BLOCKCHAIN + IPFS)")
     print("=" * 70)
-    print(f"\n[1/3] Querying ProofRegistry smart contract on Polygon Amoy...")
+    print(f"\n[1/3] Querying ProofRegistry smart contract on blockchain...")
     try:
         onchain = get_proof(clean_hash)
     except Exception as e:
         print(f"[-] Smart contract query failed: {e}")
-        print("    Ensure CONTRACT_ADDRESS and AMOY_RPC_URL are valid.")
+        print("    Ensure blockchain node is running and contract address is configured.")
         return False
 
     submitter = onchain["submitter"]
     ipfs_cid = onchain["ipfs_cid"]
     ts = onchain["timestamp"]
+    net_label = onchain.get("network", "Blockchain")
+    chain_id = onchain.get("chain_id", "N/A")
     date_str = datetime.datetime.fromtimestamp(ts, tz=datetime.timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC")
 
     print(f"      -> Status     : FOUND ON-CHAIN")
@@ -70,7 +72,7 @@ def verify(data_hash_hex: str) -> bool:
     print(f"  BLOCKCHAIN HASH : {clean_hash}")
     print(f"  LOCAL HASH      : {recomputed_hash}")
     print(f"  IPFS CID        : {ipfs_cid}")
-    print(f"  NETWORK         : Polygon Amoy (Chain ID 80002)")
+    print(f"  NETWORK         : {net_label} (Chain ID {chain_id})")
     print(f"  SUBMITTER       : {submitter}")
     print(f"  TIMESTAMP       : {date_str}")
     print(f"  RESULT          : {'VALID (Bit-for-bit cryptographic match)' if is_valid else 'TAMPER DETECTED'}")

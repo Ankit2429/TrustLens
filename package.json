@@ -4,6 +4,8 @@
   "description": "Smart contract + deployment for HH Goa 2026 Task 3 proof registry",
   "scripts": {
     "compile": "node node_modules/hardhat/internal/cli/cli.js compile",
+    "deploy:anvil": "node node_modules/hardhat/internal/cli/cli.js run scripts/deploy.js --network localhost",
+    "deploy:localhost": "node node_modules/hardhat/internal/cli/cli.js run scripts/deploy.js --network localhost",
     "deploy:amoy": "node node_modules/hardhat/internal/cli/cli.js run scripts/deploy.js --network amoy"
   },
   "devDependencies": {

@@ -1,14 +1,17 @@
-"""Integration test script for TrustLens Web Application API on localhost."""
 import json
 import os
 import sys
+import pytest
 import requests
 
 BASE_URL = "http://127.0.0.1:8000"
 
 def test_webapp_integration():
     print("[1/7] Testing GET /api/health...")
-    r = requests.get(f"{BASE_URL}/api/health", timeout=10)
+    try:
+        r = requests.get(f"{BASE_URL}/api/health", timeout=3)
+    except Exception as e:
+        pytest.skip(f"Web server is not running on {BASE_URL} ({e}). Start with `python web_server.py`.")
     assert r.status_code == 200, f"Health check failed: {r.text}"
     health = r.json()
     print(f"      Health OK. Network: {health.get('network')}, Block: #{health.get('latest_block')}, Contract: {health.get('contract_address')}")

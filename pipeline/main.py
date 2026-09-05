@@ -429,11 +429,11 @@ def run_pipeline(
         sys.exit(1)
 
     # ---------------------------------------------------------
-    # [9/9] Polygon Amoy Blockchain Proof Anchoring
+    # [9/9] Blockchain Proof Anchoring
     # ---------------------------------------------------------
     chain_receipt = None
     if not skip_blockchain:
-        print("\n[9/9] Anchoring proof to Polygon Amoy Testnet (ProofRegistry.sol)...")
+        print("\n[9/9] Anchoring proof to Blockchain (ProofRegistry.sol)...")
         t0 = time.perf_counter()
         try:
             chain_receipt = register_proof(manifest_hash, manifest_cid)
@@ -443,13 +443,13 @@ def run_pipeline(
             print(f"      -> Status               : {chain_receipt['status']}")
             print(f"      -> Contract Address     : {chain_receipt['contract_address']}")
             print(f"      -> Submitter Address    : {chain_receipt['submitter']}")
-            print(f"      -> Network              : {chain_receipt['network']}")
+            print(f"      -> Network              : {chain_receipt['network']} (Chain ID {chain_receipt['chain_id']})")
             print(f"      -> Stage Latency        : {timings['9_blockchain']:.3f} s")
         except Exception as e:
             print(f"[!] Blockchain proof registration failed: {e}")
             sys.exit(1)
 
-        print("\n  [+] Querying on-chain proof from Polygon Amoy to verify registry state...")
+        print(f"\n  [+] Querying on-chain proof from {chain_receipt['network']} to verify registry state...")
         onchain = get_proof(manifest_hash)
         print(f"      -> On-Chain Verification: CONFIRMED")
         print(f"      -> On-Chain Submitter   : {onchain['submitter']}")
@@ -466,8 +466,9 @@ def run_pipeline(
     print(f"  Evidence SHA-256 Hash : {manifest_hash}")
     print(f"  Evidence IPFS CID     : {manifest_cid}")
     if chain_receipt:
-        print(f"  Polygon Tx Hash       : {chain_receipt['tx_hash']}")
+        print(f"  Blockchain Tx Hash    : {chain_receipt['tx_hash']}")
         print(f"  Block Number          : {chain_receipt['block']}")
+        print(f"  Network               : {chain_receipt['network']} (Chain ID {chain_receipt['chain_id']})")
     print(f"  Selected Match        : {matched_candidate.get('link')}")
     print(f"  Platform              : {matched_candidate.get('platform')}")
     print(f"  Face Similarity       : {similarity_score:.4f}")
