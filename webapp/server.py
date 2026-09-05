@@ -39,7 +39,9 @@ from pipeline.face_id import (
 from pipeline.search import reverse_image_search, filter_social_matches
 from pipeline.fingerprint import (
     build_evidence_manifest,
+    calculate_dynamic_confidence,
     calculate_separation_margin,
+    compute_candidate_consensus,
     sha256_of_json,
     sha256_of_bytes,
 )
@@ -240,6 +242,7 @@ async def analyze_and_execute_pipeline(
             verified_threshold=verified_threshold,
             review_threshold=review_threshold,
             max_workers=8,
+            query_multiview=query_analysis.get("multiview"),
         )
 
         evaluated_candidates = []
@@ -282,6 +285,10 @@ async def analyze_and_execute_pipeline(
         rejected_sims = [x["similarity"] for x in (review_candidates + rejected_candidates)]
         margin_info = calculate_separation_margin(verified_sims, rejected_sims)
         sep_margin = margin_info["separation_margin"]
+
+        # Compute consensus clustering & cross-candidate agreement
+        consensus_data = compute_candidate_consensus(raw_eval_results, verified_threshold=verified_threshold)
+
         timings["6_ranking"] = time.perf_counter() - t0
         stages_log[-1]["status"] = "SUCCESS"
         stages_log[-1]["detail"] = f"Separation Margin: {sep_margin if sep_margin is not None else 'N/A'} (Verified: {len(verified_matches)}, Review: {len(review_candidates)}, Rejected: {len(rejected_candidates)})"
@@ -299,6 +306,15 @@ async def analyze_and_execute_pipeline(
 
         if not best_match:
             raise HTTPException(status_code=404, detail="No faces detected in discovered candidate images")
+
+        # Compute dynamic identity confidence
+        confidence_data = calculate_dynamic_confidence(
+            similarity=best_match["similarity"],
+            candidate_quality=best_match["quality"],
+            separation_margin=sep_margin,
+            cross_result_agreement=consensus_data["agreement_ratio"],
+            platform_diversity=consensus_data["platform_count"],
+        )
 
         # [7/9] Evidence Manifest Generation (RFC-8785)
         t0 = time.perf_counter()
@@ -330,6 +346,8 @@ async def analyze_and_execute_pipeline(
             separation_margin=sep_margin,
             margin_interpretation=margin_info.get("margin_interpretation"),
             thumbnail_sha256=best_match.get("thumbnail_sha256"),
+            confidence_data=confidence_data,
+            consensus_data=consensus_data,
         )
         timings["7_manifest"] = time.perf_counter() - t0
         stages_log[-1]["status"] = "SUCCESS"
@@ -383,8 +401,12 @@ async def analyze_and_execute_pipeline(
                 "rejected_count": len(rejected_candidates),
                 "separation_margin": sep_margin,
                 "margin_interpretation": margin_info.get("margin_interpretation"),
+                "consensus": consensus_data,
+                "confidence": confidence_data,
             },
             "best_match": best_match,
+            "confidence_data": confidence_data,
+            "consensus_data": consensus_data,
             "verified_matches": verified_matches,
             "review_candidates": review_candidates,
             "rejected_candidates": rejected_candidates,

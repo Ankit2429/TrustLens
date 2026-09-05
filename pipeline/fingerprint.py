@@ -70,6 +70,106 @@ def calculate_separation_margin(
     }
 
 
+def calculate_dynamic_confidence(
+    similarity: float,
+    candidate_quality: float = 0.80,
+    separation_margin: Optional[float] = None,
+    cross_result_agreement: float = 1.0,
+    platform_diversity: int = 1,
+) -> dict[str, Any]:
+    """Compute a multi-signal identity confidence score.
+
+    Formula:
+        Confidence = 0.45 * similarity_norm
+                   + 0.15 * quality_score
+                   + 0.15 * margin_norm
+                   + 0.15 * cross_result_agreement
+                   + 0.10 * platform_diversity_factor
+
+    Where:
+        - similarity_norm: max(0, min(1, similarity / 0.90))
+        - quality_score: candidate image quality [0.0, 1.0]
+        - margin_norm: max(0, min(1, (margin or 0.20) / 0.40))
+        - cross_result_agreement: fraction of top supporting matches [0.0, 1.0]
+        - platform_diversity_factor: min(1.0, platform_diversity / 2.0)
+
+    Returns:
+        Dictionary containing overall confidence in [0.0, 1.0] and detailed breakdown.
+    """
+    sim_norm = max(0.0, min(1.0, similarity / 0.90))
+    qual_norm = max(0.0, min(1.0, candidate_quality))
+    eff_margin = 0.20 if separation_margin is None else max(0.0, separation_margin)
+    margin_norm = max(0.0, min(1.0, eff_margin / 0.40))
+    agree_norm = max(0.0, min(1.0, cross_result_agreement))
+    plat_norm = min(1.0, max(0.5, platform_diversity / 2.0))
+
+    score = (
+        0.45 * sim_norm
+        + 0.15 * qual_norm
+        + 0.15 * margin_norm
+        + 0.15 * agree_norm
+        + 0.10 * plat_norm
+    )
+    confidence = round(float(max(0.0, min(1.0, score))), 4)
+
+    return {
+        "confidence_score": confidence,
+        "breakdown": {
+            "similarity_norm": round(sim_norm, 4),
+            "quality_factor": round(qual_norm, 4),
+            "separation_factor": round(margin_norm, 4),
+            "agreement_factor": round(agree_norm, 4),
+            "platform_diversity_factor": round(plat_norm, 4),
+        },
+        "formula": "0.45*sim_norm + 0.15*qual + 0.15*margin + 0.15*agreement + 0.10*platform_diversity",
+    }
+
+
+def compute_candidate_consensus(
+    evaluated_results: list[dict[str, Any]],
+    verified_threshold: float = 0.60,
+) -> dict[str, Any]:
+    """Analyze cluster convergence and multi-source consensus across evaluated candidate results.
+
+    Evaluates:
+    - total_supporting_verified: Count of candidate images with similarity >= verified_threshold.
+    - distinct_supporting_platforms: Set of unique platforms confirming the subject.
+    - agreement_ratio: Ratio of verified candidate images to total evaluated images.
+    - consensus_level: 'STRONG_CONSENSUS', 'MODERATE_CONSENSUS', or 'ISOLATED_MATCH'.
+    """
+    if not evaluated_results:
+        return {
+            "total_supporting": 0,
+            "distinct_platforms": [],
+            "agreement_ratio": 0.0,
+            "consensus_level": "NO_EVALUATED_CANDIDATES",
+        }
+
+    verified_candidates = [r for r in evaluated_results if r.get("similarity", 0.0) >= verified_threshold]
+    total_eval = len(evaluated_results)
+    supp_count = len(verified_candidates)
+    platforms = list({r.get("candidate", {}).get("platform", "General Web") for r in verified_candidates})
+
+    ratio = round(supp_count / float(max(1, total_eval)), 4)
+
+    if supp_count >= 3 and len(platforms) >= 2:
+        level = "STRONG_MULTI_PLATFORM_CONSENSUS"
+    elif supp_count >= 2:
+        level = "MODERATE_REPEATED_CONSENSUS"
+    elif supp_count == 1:
+        level = "ISOLATED_SINGLE_MATCH"
+    else:
+        level = "NO_VERIFIED_CONSENSUS"
+
+    return {
+        "total_supporting": supp_count,
+        "distinct_platforms": platforms,
+        "platform_count": len(platforms),
+        "agreement_ratio": ratio,
+        "consensus_level": level,
+    }
+
+
 def build_evidence_manifest(
     query_face_metadata: dict[str, Any],
     candidate: dict[str, Any],
@@ -91,6 +191,8 @@ def build_evidence_manifest(
     thumbnail_sha256: Optional[str] = None,
     discovery_timestamp: Optional[int] = None,
     blockchain_info: Optional[dict[str, Any]] = None,
+    confidence_data: Optional[dict[str, Any]] = None,
+    consensus_data: Optional[dict[str, Any]] = None,
 ) -> tuple[dict[str, Any], str]:
     """Construct a complete, tamper-evident evidence manifest for a verified discovery.
 
@@ -115,6 +217,8 @@ def build_evidence_manifest(
         thumbnail_sha256: SHA-256 hash of the downloaded candidate thumbnail bytes.
         discovery_timestamp: Unix timestamp when discovery occurred (defaults to now).
         blockchain_info: Optional on-chain anchor details (network, chain_id, contract).
+        confidence_data: Multi-signal dynamic confidence breakdown.
+        consensus_data: Identity consensus and multi-source agreement metrics.
 
     Returns:
         Tuple of (manifest_dict, canonical_sha256_hex).
@@ -129,8 +233,18 @@ def build_evidence_manifest(
     search_rank = int(candidate.get("search_rank", 1))
     thumbnail_url = candidate.get("thumbnail")
 
+    # Compute default confidence if not passed
+    if confidence_data is None:
+        confidence_data = calculate_dynamic_confidence(
+            similarity=similarity_score,
+            candidate_quality=candidate_image_quality or 0.80,
+            separation_margin=separation_margin,
+            cross_result_agreement=consensus_data.get("agreement_ratio", 1.0) if consensus_data else 1.0,
+            platform_diversity=consensus_data.get("platform_count", 1) if consensus_data else 1,
+        )
+
     manifest_payload: dict[str, Any] = {
-        "schema_version": "1.1.0",
+        "schema_version": "1.2.0",
         "record_timestamp": ts,
         "face": {
             "algorithm": query_face_metadata.get("algorithm", "InsightFace buffalo_l"),
@@ -161,6 +275,8 @@ def build_evidence_manifest(
         },
         "verification": {
             "face_similarity_score": round(float(similarity_score), 4),
+            "identity_confidence": confidence_data.get("confidence_score", round(float(similarity_score), 4)),
+            "confidence_breakdown": confidence_data.get("breakdown"),
             "verified_threshold": round(float(verified_threshold), 4),
             "review_threshold": round(float(review_threshold), 4),
             "decision": decision,
@@ -170,6 +286,7 @@ def build_evidence_manifest(
             "candidate_image_quality": round(float(candidate_image_quality), 4) if candidate_image_quality is not None else None,
             "separation_margin": round(float(separation_margin), 4) if separation_margin is not None else None,
             "margin_interpretation": margin_interpretation,
+            "consensus_metrics": consensus_data,
         },
         "integrity": {
             "canonicalization_method": "RFC-8785 canonical JSON (sorted keys, compact separators, UTF-8)",

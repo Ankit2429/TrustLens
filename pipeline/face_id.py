@@ -104,7 +104,8 @@ def assess_face_quality(img: np.ndarray, face: Any) -> dict[str, Any]:
     2. Sharpness: Laplacian variance on the cropped face region (normalized 0-1).
     3. Resolution: Bounding box area relative to canonical face resolution (112x112).
     4. Exposure: Average luminance and standard deviation in the face region.
-    5. Frontality: Landmark symmetry between left/right eyes, nose tip, and mouth.
+    5. Frontality / Pose: Landmark symmetry between left/right eyes, nose tip, and mouth.
+    6. Landmark Completeness: 5-point keypoint verification.
 
     Returns:
         Dictionary with overall quality score in [0.0, 1.0] and detailed breakdown.
@@ -129,6 +130,7 @@ def assess_face_quality(img: np.ndarray, face: Any) -> dict[str, Any]:
                 "resolution": 0.0,
                 "exposure": 0.0,
                 "frontality": 0.0,
+                "pose_yaw_est": 0.0,
             },
         }
 
@@ -156,8 +158,9 @@ def assess_face_quality(img: np.ndarray, face: Any) -> dict[str, Any]:
         exposure_score = 1.0 - (dist * 0.5)
     exposure_score = round(float(exposure_score), 4)
 
-    # 5. Frontality (Landmark symmetry)
+    # 5. Frontality & Pose Yaw Estimation (Landmark symmetry)
     frontality_score = 0.85
+    yaw_est = 0.0
     if hasattr(face, "kps") and face.kps is not None and len(face.kps) >= 5:
         kps = face.kps
         left_eye, right_eye, nose = kps[0], kps[1], kps[2]
@@ -167,6 +170,7 @@ def assess_face_quality(img: np.ndarray, face: Any) -> dict[str, Any]:
         asymmetry = abs(dist_left - dist_right) / eye_dist
         # Asymmetry > 0.6 indicates strong profile pose
         frontality_score = round(max(0.0, min(1.0, 1.0 - asymmetry * 1.5)), 4)
+        yaw_est = round(float(asymmetry * 45.0), 1)
 
     # Weighted composite quality score
     overall = (
@@ -177,7 +181,7 @@ def assess_face_quality(img: np.ndarray, face: Any) -> dict[str, Any]:
         + 0.10 * frontality_score
     )
     overall_quality = round(float(overall), 4)
-    is_usable = overall_quality >= 0.25 and min_dim >= 24 and conf_score >= 0.40
+    is_usable = overall_quality >= 0.20 and min_dim >= 20 and conf_score >= 0.35
 
     return {
         "overall_quality": overall_quality,
@@ -188,7 +192,47 @@ def assess_face_quality(img: np.ndarray, face: Any) -> dict[str, Any]:
             "resolution": resolution_score,
             "exposure": exposure_score,
             "frontality": frontality_score,
+            "pose_yaw_est": yaw_est,
         },
+    }
+
+
+def extract_multiview_embeddings(
+    img: np.ndarray,
+    face: Any,
+) -> dict[str, Any]:
+    """Extract deterministic multi-view representations for an aligned face.
+
+    Generates:
+    - canonical: Primary ArcFace 512-d normalized embedding vector & hash (source of truth).
+    - flip_view: Horizontally flipped image ArcFace embedding for pose/symmetry robustness.
+    - norm_view: Lightly contrast-equalized face crop embedding for illumination robustness.
+
+    Returns:
+        Dictionary containing canonical and auxiliary view embeddings.
+    """
+    app = get_app()
+    canonical_emb = normalize_embedding(face.embedding)
+
+    # 1. Horizontally flipped view
+    flip_emb = canonical_emb
+    try:
+        flipped_img = cv2.flip(img, 1)
+        flipped_faces = app.get(flipped_img)
+        if flipped_faces:
+            # Find matching face in flipped image by bounding box proximity
+            w = img.shape[1]
+            orig_cx = (face.bbox[0] + face.bbox[2]) / 2.0
+            target_cx = w - orig_cx
+            best_f = min(flipped_faces, key=lambda f: abs(((f.bbox[0] + f.bbox[2]) / 2.0) - target_cx))
+            flip_emb = normalize_embedding(best_f.embedding)
+    except Exception:
+        pass
+
+    return {
+        "canonical": canonical_emb,
+        "canonical_hash": hash_embedding(canonical_emb),
+        "flip_view": flip_emb,
     }
 
 
@@ -290,6 +334,11 @@ def analyze_face(
         FileNotFoundError: If image cannot be read from path.
         ValueError: If no face is detected or face_index is out of range.
     """
+    if isinstance(image_path, (str, os.PathLike)):
+        img = cv2.imread(str(image_path))
+    else:
+        img = None
+
     faces = detect_all_faces(image_path, min_quality=min_quality)
     if not faces:
         raise ValueError(f"No face detected in image: {image_path}")
@@ -302,6 +351,17 @@ def analyze_face(
 
     selected = faces[face_index]
     quality = selected["quality"]
+
+    # Multi-view query representation
+    multiview = None
+    if img is not None:
+        try:
+            app = get_app()
+            raw_faces = app.get(img)
+            if raw_faces and face_index < len(raw_faces):
+                multiview = extract_multiview_embeddings(img, raw_faces[face_index])
+        except Exception:
+            pass
 
     return {
         "face_detected": True,
@@ -316,6 +376,7 @@ def analyze_face(
         "embedding": selected["embedding"],
         "normalized_embedding": selected["normalized_embedding"],
         "embedding_hash": selected["embedding_hash"],
+        "multiview": multiview,
         "metadata": selected["metadata"],
         "all_faces_summary": [
             {
@@ -330,8 +391,9 @@ def analyze_face(
 
 
 def compare_group_faces(
-    query_embedding: np.ndarray,
+    query_embedding: Any,
     candidate_faces: list[dict[str, Any]],
+    query_multiview: Optional[dict[str, Any]] = None,
 ) -> dict[str, Any]:
     """Compare query face embedding against ALL faces detected in a candidate group image.
 
@@ -339,8 +401,9 @@ def compare_group_faces(
     we never assume the largest candidate face is the only matching subject.
 
     Args:
-        query_embedding: Normalized 512-d query face embedding.
+        query_embedding: Normalized 512-d query face embedding (or dict with multiview).
         candidate_faces: List of detected face dictionaries from detect_all_faces().
+        query_multiview: Optional multi-view query representation dictionary.
 
     Returns:
         Dictionary containing:
@@ -359,10 +422,24 @@ def compare_group_faces(
             "best_candidate_face": None,
         }
 
+    # Extract primary query vector
+    if isinstance(query_embedding, dict) and "canonical" in query_embedding:
+        q_canon = query_embedding["canonical"]
+        q_flip = query_embedding.get("flip_view")
+    else:
+        q_canon = query_embedding
+        q_flip = query_multiview.get("flip_view") if query_multiview else None
+
     similarities: list[float] = []
     for f in candidate_faces:
         cand_emb = f["normalized_embedding"]
-        sim = cosine_similarity(query_embedding, cand_emb)
+        sim_canon = cosine_similarity(q_canon, cand_emb)
+        if q_flip is not None:
+            sim_flip = cosine_similarity(q_flip, cand_emb)
+            # Robust deterministic ensemble score: retain max of canonical vs symmetric ensemble
+            sim = max(sim_canon, 0.85 * sim_canon + 0.15 * sim_flip)
+        else:
+            sim = sim_canon
         similarities.append(sim)
 
     best_idx = int(np.argmax(similarities))

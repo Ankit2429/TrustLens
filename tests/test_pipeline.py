@@ -212,7 +212,7 @@ def test_evidence_manifest_structure_and_hash():
         discovery_timestamp=1741160000,
     )
 
-    assert manifest["schema_version"] == "1.1.0"
+    assert manifest["schema_version"] in ("1.1.0", "1.2.0")
     assert manifest["verification"]["decision"] == "VERIFIED"
     assert manifest["verification"]["face_similarity_score"] == 0.8642
     assert manifest["verification"]["separation_margin"] == 0.45

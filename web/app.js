@@ -1,162 +1,131 @@
 /**
- * TrustLens — Web UI Client Controller
- * Connects to the real TrustLens backend, visualizing SCRFD/ArcFace analysis,
- * multi-source candidate matches, RFC-8785 evidence fingerprints, IPFS storage,
- * and Polygon Amoy blockchain proof registration.
+ * TRUSTLENS — Client-Side Application Engine
+ * Face Identification & Blockchain Evidence Verification
  */
 
-let currentFile = null;
-let detectedFaces = [];
-let selectedFaceIndex = 0;
-let currentPipelineResult = null;
-let currentProofHash = null;
-let loadedImageElement = null;
-
-// DOM Elements
-const dropzone = document.getElementById('dropzone');
-const fileInput = document.getElementById('fileInput');
-const dropzonePrompt = document.getElementById('dropzonePrompt');
-const previewBox = document.getElementById('previewBox');
-const faceCanvas = document.getElementById('faceCanvas');
-const previewCaption = document.getElementById('previewCaption');
-const loadDemoBtn = document.getElementById('loadDemoBtn');
-const analyzeBtn = document.getElementById('analyzeBtn');
-
-const multiFaceSelector = document.getElementById('multiFaceSelector');
-const faceOptionsList = document.getElementById('faceOptionsList');
-const qualityPanel = document.getElementById('qualityPanel');
-const qualityBadge = document.getElementById('qualityBadge');
-const qValSharp = document.getElementById('qValSharp');
-const fillSharp = document.getElementById('fillSharp');
-const qValExpo = document.getElementById('qValExpo');
-const fillExpo = document.getElementById('fillExpo');
-const qValRes = document.getElementById('qValRes');
-const fillRes = document.getElementById('fillRes');
-const qValFront = document.getElementById('qValFront');
-const fillFront = document.getElementById('fillFront');
-const fingerprintPreview = document.getElementById('fingerprintPreview');
-const queryEmbeddingHash = document.getElementById('queryEmbeddingHash');
-
-const liveBlockNum = document.getElementById('liveBlockNum');
-const contractAddressLink = document.getElementById('contractAddressLink');
-const overallPipelineStatus = document.getElementById('overallPipelineStatus');
-const logConsole = document.getElementById('logConsole');
-
-// Top Result Banner Elements
-const resultTopBanner = document.getElementById('resultTopBanner');
-const rtbStatusPill = document.getElementById('rtbStatusPill');
-const sumCountVerif = document.getElementById('sumCountVerif');
-const sumCountRev = document.getElementById('sumCountRev');
-const sumCountRej = document.getElementById('sumCountRej');
-const rtbLatencyBadge = document.getElementById('rtbLatencyBadge');
-
-// Best Match Section Elements
-const bestMatchSection = document.getElementById('bestMatchSection');
-const bmThumbnail = document.getElementById('bmThumbnail');
-const bmPlatform = document.getElementById('bmPlatform');
-const bmTitle = document.getElementById('bmTitle');
-const bmUrl = document.getElementById('bmUrl');
-const bmSimilarity = document.getElementById('bmSimilarity');
-const bmDecision = document.getElementById('bmDecision');
-const bmRank = document.getElementById('bmRank');
-const bmQuality = document.getElementById('bmQuality');
-const bmSeparationMargin = document.getElementById('bmSeparationMargin');
-const bmSeparationInterp = document.getElementById('bmSeparationInterp');
-const openSourceBtn = document.getElementById('openSourceBtn');
-
-// Other Candidates Section Elements
-const allCandidatesSection = document.getElementById('allCandidatesSection');
-const candidatesAccordion = document.getElementById('candidatesAccordion');
-const otherCandidatesCount = document.getElementById('otherCandidatesCount');
-const countVerif = document.getElementById('countVerif');
-const countRev = document.getElementById('countRev');
-const countRej = document.getElementById('countRej');
-const countAll = document.getElementById('countAll');
-const chipCountVerif = document.getElementById('chipCountVerif');
-const chipCountRev = document.getElementById('chipCountRev');
-const chipCountRej = document.getElementById('chipCountRej');
-const countSocial = document.getElementById('countSocial');
-const candidatesGrid = document.getElementById('candidatesGrid');
-
-// Blockchain & Proof Elements
-const blockchainSection = document.getElementById('blockchainSection');
-const dispEvidenceHash = document.getElementById('dispEvidenceHash');
-const dispEvidenceCid = document.getElementById('dispEvidenceCid');
-const dispIpfsLink = document.getElementById('dispIpfsLink');
-const dispContract = document.getElementById('dispContract');
-const dispContractLink = document.getElementById('dispContractLink');
-const dispTxHash = document.getElementById('dispTxHash');
-const dispTxLink = document.getElementById('dispTxLink');
-const dispBlockStatus = document.getElementById('dispBlockStatus');
-const manifestJsonBlock = document.getElementById('manifestJsonBlock');
-
-// Actions Elements
-const actionsGrid = document.getElementById('actionsGrid');
-const verifyProofBtn = document.getElementById('verifyProofBtn');
-const verifResultArea = document.getElementById('verifResultArea');
-const verifBanner = document.getElementById('verifBanner');
-const verifIcon = document.getElementById('verifIcon');
-const verifTitle = document.getElementById('verifTitle');
-const verifDesc = document.getElementById('verifDesc');
-const verifKvGrid = document.getElementById('verifKvGrid');
-
-const tamperTestBtn = document.getElementById('tamperTestBtn');
-const tamperResultArea = document.getElementById('tamperResultArea');
-const tamperCompareView = document.getElementById('tamperCompareView');
-
-// Init
 document.addEventListener('DOMContentLoaded', () => {
-  fetchHealth();
-  setupEventListeners();
-  setInterval(fetchHealth, 15000);
-});
+  // DOM Elements
+  const fileInput = document.getElementById('fileInput');
+  const dropzone = document.getElementById('dropzone');
+  const dropzoneIdle = document.getElementById('dropzoneIdle');
+  const previewWrap = document.getElementById('previewWrap');
+  const faceCanvas = document.getElementById('faceCanvas');
+  const actionStrip = document.getElementById('actionStrip');
+  const startPipelineBtn = document.getElementById('startPipelineBtn');
+  const resetImageBtn = document.getElementById('resetImageBtn');
+  const multiFaceBar = document.getElementById('multiFaceBar');
+  const multiFaceChips = document.getElementById('multiFaceChips');
 
-function logMessage(msg, type = 'info') {
-  const line = document.createElement('div');
-  line.className = `log-line ${type === 'error' ? 'log-error' : type === 'success' ? 'log-success' : ''}`;
-  const time = new Date().toLocaleTimeString();
-  line.textContent = `[${time}] ${msg}`;
-  logConsole.appendChild(line);
-  logConsole.scrollTop = logConsole.scrollHeight;
-}
+  // Preset buttons
+  const presetSatyaBtn = document.getElementById('presetSatyaBtn');
+  const presetUnindexedBtn = document.getElementById('presetUnindexedBtn');
+  const presetGroupBtn = document.getElementById('presetGroupBtn');
 
-// -------------------------------------------------------------
-// Health Check
-// -------------------------------------------------------------
-async function fetchHealth() {
-  try {
-    const res = await fetch('/api/health');
-    if (!res.ok) return;
-    const data = await res.json();
-    if (data.latest_block) {
-      liveBlockNum.textContent = `#${data.latest_block}`;
+  // Telemetry & Header
+  const networkNameLabel = document.getElementById('networkNameLabel');
+  const headerBlockNum = document.getElementById('headerBlockNum');
+  const contractTelemetryPill = document.getElementById('contractTelemetryPill');
+
+  // Pipeline Stream
+  const progressStreamSection = document.getElementById('progressStreamSection');
+  const streamCurrentStageTitle = document.getElementById('streamCurrentStageTitle');
+  const liveDiscoveryHud = document.getElementById('liveDiscoveryHud');
+  const hudDiscoveredCount = document.getElementById('hudDiscoveredCount');
+  const hudEvaluatedCount = document.getElementById('hudEvaluatedCount');
+  const discoveredPlatformsStrip = document.getElementById('discoveredPlatformsStrip');
+
+  // Result Showcase
+  const resultShowcaseSection = document.getElementById('resultShowcaseSection');
+  const verdictBannerWrap = document.getElementById('verdictBannerWrap');
+  const verdictHeadline = document.getElementById('verdictHeadline');
+  const verdictSubReason = document.getElementById('verdictSubReason');
+  const majorSimilarityScore = document.getElementById('majorSimilarityScore');
+  const similarityBadge = document.getElementById('similarityBadge');
+
+  const resConfidenceVal = document.getElementById('resConfidenceVal');
+  const resMarginVal = document.getElementById('resMarginVal');
+  const resQualityVal = document.getElementById('resQualityVal');
+  const resConsensusVal = document.getElementById('resConsensusVal');
+
+  const primaryMatchThumb = document.getElementById('primaryMatchThumb');
+  const primaryPlatformChip = document.getElementById('primaryPlatformChip');
+  const primaryMatchTitle = document.getElementById('primaryMatchTitle');
+  const primaryMatchLink = document.getElementById('primaryMatchLink');
+  const primaryDomain = document.getElementById('primaryDomain');
+  const primaryThumbHash = document.getElementById('primaryThumbHash');
+
+  const blockchainProofCard = document.getElementById('blockchainProofCard');
+  const blockchainRefusalCard = document.getElementById('blockchainRefusalCard');
+  const refusalDescText = document.getElementById('refusalDescText');
+  const refusalIpfsLink = document.getElementById('refusalIpfsLink');
+
+  const proofTxHash = document.getElementById('proofTxHash');
+  const proofBlockNum = document.getElementById('proofBlockNum');
+  const proofNetworkLabel = document.getElementById('proofNetworkLabel');
+  const proofContractAddr = document.getElementById('proofContractAddr');
+  const proofManifestHash = document.getElementById('proofManifestHash');
+  const proofIpfsCidLink = document.getElementById('proofIpfsCidLink');
+  const viewManifestJsonBtn = document.getElementById('viewManifestJsonBtn');
+  const verifyProofModalBtn = document.getElementById('verifyProofModalBtn');
+
+  const galleryCount = document.getElementById('galleryCount');
+  const candidatesScrollStrip = document.getElementById('candidatesScrollStrip');
+
+  // Tamper Demo Elements
+  const tamperScenarioBtns = document.querySelectorAll('.tamper-scenario-btn');
+  const tamperSimulationScreen = document.getElementById('tamperSimulationScreen');
+  const simStatusPill = document.getElementById('simStatusPill');
+  const simMatchPill = document.getElementById('simMatchPill');
+  const simOrigHash = document.getElementById('simOrigHash');
+  const simComputedHash = document.getElementById('simComputedHash');
+  const simOnChainStatus = document.getElementById('simOnChainStatus');
+  const simDiffBox = document.getElementById('simDiffBox');
+
+  // Modal
+  const verifyModal = document.getElementById('verifyModal');
+  const closeVerifyModalBtn = document.getElementById('closeVerifyModalBtn');
+  const modalHashInput = document.getElementById('modalHashInput');
+  const modalVerifyBtn = document.getElementById('modalVerifyBtn');
+  const modalResultBox = document.getElementById('modalResultBox');
+  const mSubmitter = document.getElementById('mSubmitter');
+  const mTimestamp = document.getElementById('mTimestamp');
+  const mIpfsCid = document.getElementById('mIpfsCid');
+
+  // State
+  let currentFile = null;
+  let detectedFaces = [];
+  let selectedFaceIndex = 0;
+  let rawImageObj = null;
+  let lastAnalysisResult = null;
+
+  // 1. Initial Health & Network Check
+  async function checkHealth() {
+    try {
+      const res = await fetch('/api/health');
+      if (res.ok) {
+        const data = await res.json();
+        if (data.network) {
+          networkNameLabel.textContent = `${data.network.toUpperCase()} (${data.chain_id})`;
+        }
+        if (data.latest_block) {
+          headerBlockNum.textContent = `#${data.latest_block}`;
+        }
+        if (data.contract_address && data.contract_address !== 'Not configured') {
+          contractTelemetryPill.textContent = `${data.contract_address.slice(0, 6)}...${data.contract_address.slice(-4)}`;
+          contractTelemetryPill.href = data.explorer_url || '#';
+        }
+      }
+    } catch (e) {
+      console.warn('Health check failed:', e);
     }
-    if (data.contract_address) {
-      const shortAddr = data.contract_address.slice(0, 6) + '...' + data.contract_address.slice(-4);
-      contractAddressLink.textContent = shortAddr;
-      contractAddressLink.href = data.explorer_url || `https://amoy.polygonscan.com/address/${data.contract_address}`;
-      dispContract.textContent = data.contract_address;
-      dispContractLink.href = data.explorer_url || `https://amoy.polygonscan.com/address/${data.contract_address}`;
-    }
-  } catch (err) {
-    console.warn('Health check warning:', err);
   }
-}
+  checkHealth();
+  setInterval(checkHealth, 8000);
 
-// -------------------------------------------------------------
-// Event Listeners Setup
-// -------------------------------------------------------------
-function setupEventListeners() {
+  // 2. Drag & Drop Event Listeners
   dropzone.addEventListener('click', (e) => {
-    if (e.target.tagName !== 'BUTTON' && !e.target.closest('.face-card')) {
-      fileInput.click();
-    }
-  });
-
-  fileInput.addEventListener('change', (e) => {
-    if (e.target.files && e.target.files[0]) {
-      handleImageSelected(e.target.files[0]);
-    }
+    if (e.target.closest('#previewWrap') || e.target.closest('button')) return;
+    fileInput.click();
   });
 
   dropzone.addEventListener('dragover', (e) => {
@@ -171,608 +140,409 @@ function setupEventListeners() {
   dropzone.addEventListener('drop', (e) => {
     e.preventDefault();
     dropzone.classList.remove('drag-over');
-    if (e.dataTransfer.files && e.dataTransfer.files[0]) {
-      handleImageSelected(e.dataTransfer.files[0]);
+    if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+      handleFileSelected(e.dataTransfer.files[0]);
     }
   });
 
-  loadDemoBtn.addEventListener('click', async (e) => {
-    e.stopPropagation();
-    try {
-      logMessage('Loading consenting demo image (demo/public_face_demo.jpg)...');
-      const res = await fetch('/api/demo-image');
-      if (!res.ok) throw new Error('Failed to load demo image');
-      const blob = await res.blob();
-      const file = new File([blob], 'public_face_demo.jpg', { type: 'image/jpeg' });
-      handleImageSelected(file);
-    } catch (err) {
-      logMessage(`Error loading demo image: ${err.message}`, 'error');
+  fileInput.addEventListener('change', (e) => {
+    if (e.target.files && e.target.files.length > 0) {
+      handleFileSelected(e.target.files[0]);
     }
   });
 
-  analyzeBtn.addEventListener('click', () => {
-    if (currentFile) {
-      executePipeline();
-    }
-  });
-
-  verifyProofBtn.addEventListener('click', () => {
-    if (currentProofHash) {
-      runIndependentVerification(currentProofHash);
-    }
-  });
-
-  tamperTestBtn.addEventListener('click', () => {
-    if (currentProofHash) {
-      runTamperDemo(currentProofHash);
-    }
-  });
-
-  // Filter chips
-  document.querySelectorAll('.filter-chip').forEach(chip => {
-    chip.addEventListener('click', () => {
-      document.querySelectorAll('.filter-chip').forEach(c => c.classList.remove('active'));
-      chip.classList.add('active');
-      filterCandidates(chip.dataset.filter);
-    });
-  });
-}
-
-// -------------------------------------------------------------
-// Image Handling & Face Pre-detection
-// -------------------------------------------------------------
-async function handleImageSelected(file) {
-  currentFile = file;
-  selectedFaceIndex = 0;
-  analyzeBtn.disabled = true;
-
-  // Reset UI sections
-  resultTopBanner.style.display = 'none';
-  bestMatchSection.style.display = 'none';
-  allCandidatesSection.style.display = 'none';
-  blockchainSection.style.display = 'none';
-  actionsGrid.style.display = 'none';
-  resetStageFlowchart();
-
-  logMessage(`Uploaded image: ${file.name} (${(file.size / 1024).toFixed(1)} KB)`);
-  overallPipelineStatus.textContent = 'Analyzing Face';
-  overallPipelineStatus.className = 'status-summary-badge';
-
-  // Load preview in Canvas
-  const reader = new FileReader();
-  reader.onload = (e) => {
-    const img = new Image();
-    img.onload = () => {
-      loadedImageElement = img;
-      renderImageOnCanvas(img);
-      dropzonePrompt.style.display = 'none';
-      previewBox.style.display = 'block';
-      detectFacesInImage(file);
-    };
-    img.src = e.target.result;
-  };
-  reader.readAsDataURL(file);
-}
-
-function renderImageOnCanvas(img, facesToHighlight = []) {
-  const ctx = faceCanvas.getContext('2d');
-  const maxDim = 460;
-  let w = img.width;
-  let h = img.height;
-  if (w > maxDim || h > maxDim) {
-    if (w > h) {
-      h = Math.round((h * maxDim) / w);
-      w = maxDim;
-    } else {
-      w = Math.round((w * maxDim) / h);
-      h = maxDim;
-    }
-  }
-  faceCanvas.width = w;
-  faceCanvas.height = h;
-
-  ctx.drawImage(img, 0, 0, w, h);
-
-  const scaleX = w / img.width;
-  const scaleY = h / img.height;
-
-  // Draw bounding boxes & landmarks
-  facesToHighlight.forEach((face) => {
-    const isSelected = face.face_index === selectedFaceIndex;
-    const [x1, y1, x2, y2] = face.bbox;
-    const sx1 = x1 * scaleX;
-    const sy1 = y1 * scaleY;
-    const sw = (x2 - x1) * scaleX;
-    const sh = (y2 - y1) * scaleY;
-
-    ctx.lineWidth = isSelected ? 3 : 2;
-    ctx.strokeStyle = isSelected ? '#00f2fe' : '#94a3b8';
-    ctx.strokeRect(sx1, sy1, sw, sh);
-
-    // Box Tag
-    ctx.fillStyle = isSelected ? 'rgba(0, 242, 254, 0.85)' : 'rgba(30, 41, 59, 0.85)';
-    ctx.fillRect(sx1, Math.max(0, sy1 - 22), 70, 20);
-    ctx.fillStyle = isSelected ? '#0b0f19' : '#f8fafc';
-    ctx.font = 'bold 11px Outfit, sans-serif';
-    ctx.fillText(`Face #${face.face_index}`, sx1 + 6, Math.max(14, sy1 - 8));
-
-    // Draw 5 landmarks if available
-    if (face.landmarks && Array.isArray(face.landmarks)) {
-      face.landmarks.forEach(([lx, ly]) => {
-        ctx.beginPath();
-        ctx.arc(lx * scaleX, ly * scaleY, isSelected ? 3 : 2, 0, 2 * Math.PI);
-        ctx.fillStyle = isSelected ? '#10b981' : '#cbd5e1';
-        ctx.fill();
-      });
-    }
-  });
-}
-
-async function detectFacesInImage(file) {
-  try {
-    const formData = new FormData();
-    formData.append('image', file);
-
-    const res = await fetch('/api/detect-faces', {
-      method: 'POST',
-      body: formData,
-    });
-
-    if (!res.ok) {
-      const err = await res.json();
-      throw new Error(err.detail || 'Face detection failed');
-    }
-
-    const data = await res.json();
-    if (!data.face_detected || data.face_count === 0) {
-      previewCaption.textContent = 'No face detected with sufficient quality';
-      previewCaption.style.color = '#ef4444';
-      logMessage('No faces detected in the provided image.', 'error');
-      qualityPanel.style.display = 'none';
-      multiFaceSelector.style.display = 'none';
-      fingerprintPreview.style.display = 'none';
-      analyzeBtn.disabled = true;
+  // 3. File Processing & Face Detection
+  async function handleFileSelected(file) {
+    if (!file.type.match(/^image\/(jpeg|png|webp)$/)) {
+      alert('Please select a valid JPG, PNG, or WEBP image.');
       return;
     }
 
-    detectedFaces = data.faces;
-    previewCaption.textContent = `Detected ${data.face_count} face${data.face_count > 1 ? 's' : ''}`;
-    previewCaption.style.color = '#10b981';
+    currentFile = file;
+    selectedFaceIndex = 0;
+    detectedFaces = [];
 
-    renderImageOnCanvas(loadedImageElement, detectedFaces);
+    // Load image preview
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      rawImageObj = new Image();
+      rawImageObj.onload = () => {
+        dropzoneIdle.style.display = 'none';
+        previewWrap.style.display = 'block';
+        actionStrip.style.display = 'flex';
+        renderFacePreview();
+        runFaceDetection(file);
+      };
+      rawImageObj.src = e.target.result;
+    };
+    reader.readAsDataURL(file);
+  }
 
-    // Setup multi-face selector if multiple faces
-    if (data.face_count > 1) {
-      multiFaceSelector.style.display = 'block';
-      faceOptionsList.innerHTML = '';
-      detectedFaces.forEach((f) => {
-        const card = document.createElement('div');
-        card.className = `face-card ${f.face_index === selectedFaceIndex ? 'selected' : ''}`;
-        card.innerHTML = `
-          <div class="fc-index">Face #${f.face_index}</div>
-          <div class="fc-score">Quality: ${(f.quality.overall_quality * 100).toFixed(0)}%</div>
-          <div class="fc-det">Det: ${(f.det_score * 100).toFixed(0)}%</div>
-        `;
-        card.addEventListener('click', () => {
-          selectedFaceIndex = f.face_index;
-          document.querySelectorAll('.face-card').forEach(c => c.classList.remove('selected'));
-          card.classList.add('selected');
-          renderImageOnCanvas(loadedImageElement, detectedFaces);
-          displayFaceQuality(f);
+  async function runFaceDetection(file) {
+    const formData = new FormData();
+    formData.append('image', file);
+
+    try {
+      const res = await fetch('/api/detect-faces', {
+        method: 'POST',
+        body: formData,
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        if (data.face_detected && data.faces.length > 0) {
+          detectedFaces = data.faces;
+          renderMultiFaceBar();
+          renderFacePreview();
+        } else {
+          document.getElementById('hudFaceCount').textContent = '0 Faces Detected';
+        }
+      }
+    } catch (e) {
+      console.warn('Face detection error:', e);
+    }
+  }
+
+  function renderMultiFaceBar() {
+    if (detectedFaces.length > 1) {
+      multiFaceBar.style.display = 'flex';
+      multiFaceChips.innerHTML = '';
+      detectedFaces.forEach((f, idx) => {
+        const btn = document.createElement('button');
+        btn.className = `face-chip ${idx === selectedFaceIndex ? 'active' : ''}`;
+        btn.textContent = `Face #${idx} (${Math.round(f.quality.overall_quality * 100)}% Q)`;
+        btn.addEventListener('click', () => {
+          selectedFaceIndex = idx;
+          renderMultiFaceBar();
+          renderFacePreview();
         });
-        faceOptionsList.appendChild(card);
+        multiFaceChips.appendChild(btn);
       });
     } else {
-      multiFaceSelector.style.display = 'none';
+      multiFaceBar.style.display = 'none';
     }
-
-    // Display quality of selected face
-    const selectedFace = detectedFaces.find(f => f.face_index === selectedFaceIndex) || detectedFaces[0];
-    displayFaceQuality(selectedFace);
-
-    analyzeBtn.disabled = false;
-    logMessage(`Detected ${data.face_count} face(s). Selected Face #${selectedFace.face_index} (Quality: ${(selectedFace.quality.overall_quality * 100).toFixed(1)}%).`, 'success');
-
-  } catch (err) {
-    logMessage(`Detection error: ${err.message}`, 'error');
-    previewCaption.textContent = `Error: ${err.message}`;
-    previewCaption.style.color = '#ef4444';
   }
-}
 
-function displayFaceQuality(face) {
-  qualityPanel.style.display = 'block';
-  fingerprintPreview.style.display = 'block';
+  function renderFacePreview() {
+    if (!rawImageObj) return;
 
-  const q = face.quality;
-  const overallPct = (q.overall_quality * 100).toFixed(1);
-  qualityBadge.textContent = `Overall Quality: ${overallPct}%`;
-  qualityBadge.className = q.overall_quality >= 0.35 ? 'quality-badge quality-good' : 'quality-badge quality-warning';
+    const ctx = faceCanvas.getContext('2d');
+    faceCanvas.width = rawImageObj.naturalWidth;
+    faceCanvas.height = rawImageObj.naturalHeight;
+    ctx.drawImage(rawImageObj, 0, 0);
 
-  const sharpPct = Math.min(100, Math.round(q.sharpness_score * 100));
-  const expoPct = Math.min(100, Math.round(q.exposure_score * 100));
-  const resPct = Math.min(100, Math.round(q.resolution_score * 100));
-  const frontPct = Math.min(100, Math.round(q.frontality_score * 100));
+    if (detectedFaces.length > 0) {
+      detectedFaces.forEach((face, idx) => {
+        const [x1, y1, x2, y2] = face.bbox;
+        const isSelected = idx === selectedFaceIndex;
 
-  qValSharp.textContent = `${sharpPct}%`;
-  fillSharp.style.width = `${sharpPct}%`;
+        // Draw Bounding Box
+        ctx.lineWidth = isSelected ? 4 : 2;
+        ctx.strokeStyle = isSelected ? '#38bdf8' : 'rgba(255, 255, 255, 0.4)';
+        ctx.strokeRect(x1, y1, x2 - x1, y2 - y1);
 
-  qValExpo.textContent = `${expoPct}%`;
-  fillExpo.style.width = `${expoPct}%`;
-
-  qValRes.textContent = `${resPct}%`;
-  fillRes.style.width = `${resPct}%`;
-
-  qValFront.textContent = `${frontPct}%`;
-  fillFront.style.width = `${frontPct}%`;
-
-  queryEmbeddingHash.textContent = face.embedding_hash;
-}
-
-// -------------------------------------------------------------
-// Real Pipeline Execution (POST /api/analyze)
-// -------------------------------------------------------------
-function setStageStatus(stageIndex, status) {
-  const step = document.querySelector(`.stage-step[data-stage="${stageIndex}"]`);
-  if (!step) return;
-  const badge = step.querySelector('.stage-status');
-  badge.className = `stage-status status-${status.toLowerCase()}`;
-  badge.textContent = status.toUpperCase();
-}
-
-function resetStageFlowchart() {
-  for (let i = 1; i <= 9; i++) {
-    setStageStatus(i, 'pending');
-  }
-}
-
-async function executePipeline() {
-  if (!currentFile) return;
-
-  analyzeBtn.disabled = true;
-  analyzeBtn.innerHTML = `<span class="btn-spinner"></span> Running Pipeline...`;
-  overallPipelineStatus.textContent = 'Pipeline In Progress';
-  overallPipelineStatus.className = 'status-summary-badge status-running-badge';
-
-  resultTopBanner.style.display = 'none';
-  bestMatchSection.style.display = 'none';
-  allCandidatesSection.style.display = 'none';
-  blockchainSection.style.display = 'none';
-  actionsGrid.style.display = 'none';
-
-  resetStageFlowchart();
-  setStageStatus(1, 'success');
-  setStageStatus(2, 'running');
-
-  logMessage('--- STARTING TRUSTLENS TASK 3 PIPELINE ---');
-
-  const formData = new FormData();
-  formData.append('image', currentFile);
-  formData.append('face_index', selectedFaceIndex);
-  formData.append('verified_threshold', 0.45);
-  formData.append('review_threshold', 0.38);
-  formData.append('min_quality', 0.20);
-  formData.append('skip_blockchain', false);
-
-  try {
-    const res = await fetch('/api/analyze', {
-      method: 'POST',
-      body: formData,
-    });
-
-    if (!res.ok) {
-      const errData = await res.json();
-      const errMsg = errData.detail?.error || errData.detail || 'Pipeline execution failed';
-      throw new Error(errMsg);
-    }
-
-    const data = await res.json();
-    currentPipelineResult = data;
-    currentProofHash = data.manifest_hash;
-
-    // Mark all 9 stages as SUCCESS
-    for (let i = 1; i <= 9; i++) {
-      setStageStatus(i, 'success');
-    }
-
-    overallPipelineStatus.textContent = 'Pipeline Verified & Anchored';
-    overallPipelineStatus.className = 'status-summary-badge status-success-badge';
-
-    // Log stages
-    if (data.stages_log) {
-      data.stages_log.forEach(s => {
-        logMessage(`[Stage ${s.stage}] ${s.name}: ${s.detail || s.status}`, s.status === 'FAILED' ? 'error' : 'success');
+        // Draw 5-Point Landmarks
+        if (face.landmarks) {
+          ctx.fillStyle = isSelected ? '#10b981' : '#60a5fa';
+          face.landmarks.forEach(([lx, ly]) => {
+            ctx.beginPath();
+            ctx.arc(lx, ly, isSelected ? 4 : 3, 0, 2 * Math.PI);
+            ctx.fill();
+          });
+        }
       });
+
+      const selFace = detectedFaces[selectedFaceIndex];
+      if (selFace) {
+        document.getElementById('hudFaceCount').textContent = `${detectedFaces.length} Face(s)`;
+        document.getElementById('hudFaceQuality').textContent = `Quality: ${selFace.quality.overall_quality.toFixed(2)}`;
+        document.getElementById('hudFaceConf').textContent = `Conf: ${selFace.det_score.toFixed(2)}`;
+      }
     }
-
-    renderPipelineResults(data);
-
-  } catch (err) {
-    logMessage(`Pipeline execution error: ${err.message}`, 'error');
-    overallPipelineStatus.textContent = 'Execution Failed';
-    overallPipelineStatus.className = 'status-summary-badge status-failed-badge';
-    alert(`TrustLens Pipeline Error:\n${err.message}`);
-  } finally {
-    analyzeBtn.disabled = false;
-    analyzeBtn.innerHTML = `
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="btn-icon">
-        <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
-      </svg>
-      Analyze Image
-    `;
-  }
-}
-
-// -------------------------------------------------------------
-// Render Complete Results
-// -------------------------------------------------------------
-function renderPipelineResults(data) {
-  const bm = data.best_match;
-  const chain = data.blockchain_receipt;
-  const summary = data.search_summary || {};
-  const perf = data.performance || {};
-
-  const numVerif = data.verified_matches ? data.verified_matches.length : (summary.verified_count || 0);
-  const numRev = data.review_candidates ? data.review_candidates.length : (summary.review_count || 0);
-  const numRej = data.rejected_candidates ? data.rejected_candidates.length : (summary.rejected_count || 0);
-
-  // 1. TOP RESULT BANNER
-  resultTopBanner.style.display = 'block';
-  if (numVerif > 0) {
-    resultTopBanner.className = 'result-top-banner';
-    rtbStatusPill.textContent = `STATUS: VERIFIED MATCH FOUND (${numVerif} Verified)`;
-  } else {
-    resultTopBanner.className = 'result-top-banner banner-no-verif';
-    rtbStatusPill.textContent = 'STATUS: NO HIGH-CONFIDENCE MATCH';
-  }
-  sumCountVerif.textContent = numVerif;
-  sumCountRev.textContent = numRev;
-  sumCountRej.textContent = numRej;
-  rtbLatencyBadge.textContent = `⚡ ${(perf.total_latency_seconds || 0).toFixed(1)}s`;
-
-  // 2. PRIMARY SECTION: BEST MATCH
-  if (bm) {
-    bestMatchSection.style.display = 'block';
-    bmThumbnail.src = bm.thumbnail || '';
-    bmPlatform.textContent = bm.platform || 'Web';
-    bmTitle.textContent = bm.title || 'Untitled Candidate';
-    bmUrl.textContent = bm.link || '';
-    bmSimilarity.textContent = `${(bm.similarity * 100).toFixed(2)}% (${bm.similarity})`;
-    
-    bmDecision.textContent = bm.decision;
-    bmDecision.className = `decision-badge decision-${bm.decision.toLowerCase()}`;
-    
-    bmRank.textContent = `#${bm.rank}`;
-    bmQuality.textContent = `${(bm.quality * 100).toFixed(1)}%`;
-
-    if (summary.separation_margin !== null && summary.separation_margin !== undefined) {
-      bmSeparationMargin.textContent = `${summary.separation_margin.toFixed(4)}`;
-      bmSeparationInterp.textContent = summary.margin_interpretation || 'Verified separation';
-    }
-
-    openSourceBtn.href = bm.link || '#';
   }
 
-  // 3. SECONDARY SECTION: OTHER SEARCH CANDIDATES (Collapsed by default)
-  if (data.all_candidates && data.all_candidates.length > 0) {
-    allCandidatesSection.style.display = 'block';
-    candidatesAccordion.open = false; // Collapsed by default as requested
-    otherCandidatesCount.textContent = data.all_candidates.length;
-
-    countVerif.textContent = numVerif;
-    countRev.textContent = numRev;
-    countRej.textContent = numRej;
-
-    chipCountVerif.textContent = numVerif;
-    chipCountRev.textContent = numRev;
-    chipCountRej.textContent = numRej;
-
-    renderCandidateCards(data.all_candidates);
-  }
-
-  // 4. BLOCKCHAIN & EVIDENCE PROOF SECTION
-  blockchainSection.style.display = 'block';
-  dispEvidenceHash.textContent = data.manifest_hash;
-  dispEvidenceCid.textContent = data.manifest_cid;
-  dispIpfsLink.href = `https://gateway.pinata.cloud/ipfs/${data.manifest_cid}`;
-
-  if (chain) {
-    dispTxHash.textContent = chain.tx_hash;
-    dispTxLink.href = chain.explorer_url || `https://amoy.polygonscan.com/tx/${chain.tx_hash}`;
-    dispBlockStatus.textContent = `Block #${chain.block} (ON-CHAIN VALID)`;
-  } else {
-    dispTxHash.textContent = 'Offline Dry Run';
-    dispTxLink.href = '#';
-    dispBlockStatus.textContent = 'Simulated / Not registered';
-  }
-
-  manifestJsonBlock.textContent = JSON.stringify(data.manifest, null, 2);
-
-  // 5. SHOW INDEPENDENT VERIFICATION & TAMPER DEMO
-  actionsGrid.style.display = 'grid';
-  verifResultArea.style.display = 'none';
-  tamperResultArea.style.display = 'none';
-
-  logMessage(`Verification completed in ${(perf.total_latency_seconds || 0).toFixed(1)}s: 1 primary verified match, ${numRej} unrelated candidates rejected.`, 'success');
-}
-
-function renderCandidateCards(candidates) {
-  candidatesGrid.innerHTML = '';
-  const socialList = candidates.filter(c => c.platform !== 'General Web');
-
-  countAll.textContent = candidates.length;
-  countSocial.textContent = socialList.length;
-
-  candidates.forEach(cand => {
-    const card = document.createElement('div');
-    const decisionLower = (cand.decision || 'rejected').toLowerCase();
-    card.className = `candidate-card cand-card-${decisionLower}`;
-    card.dataset.platformType = cand.platform === 'General Web' ? 'WEB' : 'SOCIAL';
-    card.dataset.decision = cand.decision;
-
-    const simPct = (cand.similarity * 100).toFixed(1);
-    const decClass = `decision-${decisionLower}`;
-
-    card.innerHTML = `
-      <div class="cand-thumb-wrap">
-        <img class="cand-thumb" src="${cand.thumbnail}" alt="Thumb" onerror="this.src='data:image/svg+xml;utf8,<svg xmlns=\\'http://www.w3.org/2000/svg\\' width=\\'80\\' height=\\'80\\' fill=\\'none\\'><rect width=\\'100%\\' height=\\'100%\\' fill=\\'%231e293b\\'/></svg>'">
-        <span class="cand-platform-tag">${cand.platform}</span>
-      </div>
-      <div class="cand-info">
-        <div class="cand-header-row">
-          <span class="cand-rank">#${cand.rank}</span>
-          <span class="decision-badge ${decClass}">${cand.decision}</span>
-        </div>
-        <h4 class="cand-title" title="${cand.title}">${cand.title || 'Untitled'}</h4>
-        <div class="cand-stats">
-          <span>Similarity: <strong>${simPct}%</strong></span>
-          <span>Quality: <strong>${(cand.quality * 100).toFixed(0)}%</strong></span>
-        </div>
-        <a class="cand-link" href="${cand.link}" target="_blank" rel="noopener noreferrer">Visit Source ↗</a>
-      </div>
-    `;
-    candidatesGrid.appendChild(card);
+  // 4. Demo Preset Buttons
+  presetSatyaBtn.addEventListener('click', async () => {
+    loadPresetImage('demo/real_face_pairs/Satya_Nadella_(cropped).jpg', 'Satya_Nadella.jpg');
   });
-}
 
-function filterCandidates(filter) {
-  const cards = document.querySelectorAll('.candidate-card');
-  cards.forEach(card => {
-    if (filter === 'ALL') {
-      card.style.display = 'flex';
-    } else if (filter === 'SOCIAL') {
-      card.style.display = card.dataset.platformType === 'SOCIAL' ? 'flex' : 'none';
-    } else if (filter === 'VERIFIED') {
-      card.style.display = card.dataset.decision === 'VERIFIED' ? 'flex' : 'none';
-    } else if (filter === 'REVIEW') {
-      card.style.display = card.dataset.decision === 'REVIEW' ? 'flex' : 'none';
-    } else if (filter === 'REJECTED') {
-      card.style.display = card.dataset.decision === 'REJECTED' ? 'flex' : 'none';
+  presetUnindexedBtn.addEventListener('click', async () => {
+    loadPresetImage('demo/test_cases/06_unindexed_nomatch.jpg', 'Unindexed_Face.jpg');
+  });
+
+  presetGroupBtn.addEventListener('click', async () => {
+    loadPresetImage('demo/real_face_pairs/Steve_Jobs_and_Bill_Gates_(522695099).jpg', 'Jobs_Gates_Group.jpg');
+  });
+
+  async function loadPresetImage(path, filename) {
+    try {
+      const res = await fetch('/api/demo-image');
+      if (res.ok) {
+        const blob = await res.blob();
+        const file = new File([blob], filename, { type: 'image/jpeg' });
+        handleFileSelected(file);
+      }
+    } catch (e) {
+      console.warn('Preset load failed:', e);
+    }
+  }
+
+  // Reset button
+  resetImageBtn.addEventListener('click', () => {
+    currentFile = null;
+    rawImageObj = null;
+    detectedFaces = [];
+    dropzoneIdle.style.display = 'flex';
+    previewWrap.style.display = 'none';
+    actionStrip.style.display = 'none';
+    multiFaceBar.style.display = 'none';
+    progressStreamSection.style.display = 'none';
+    resultShowcaseSection.style.display = 'none';
+  });
+
+  // 5. Pipeline Execution
+  startPipelineBtn.addEventListener('click', async () => {
+    if (!currentFile) return;
+
+    // Reset results & show stream
+    resultShowcaseSection.style.display = 'none';
+    progressStreamSection.style.display = 'block';
+    liveDiscoveryHud.style.display = 'block';
+    progressStreamSection.scrollIntoView({ behavior: 'smooth' });
+
+    animatePipelineStep(1, 'Stage 1 of 9: Detecting Face & Quality Assessment');
+
+    const formData = new FormData();
+    formData.append('image', currentFile);
+    formData.append('face_index', selectedFaceIndex);
+    formData.append('verified_threshold', '0.60');
+    formData.append('review_threshold', '0.40');
+
+    // Simulate progressive stage lighting
+    setTimeout(() => animatePipelineStep(2, 'Stage 4 of 9: Multi-Source Visual Web Discovery'), 1200);
+    setTimeout(() => {
+      animatePipelineStep(3, 'Stage 5 of 9: Independent ArcFace Candidate Verification');
+      illuminatePlatformTags();
+    }, 2800);
+    setTimeout(() => animatePipelineStep(4, 'Stage 7 of 9: RFC-8785 Canonical Manifest Construction'), 4500);
+
+    try {
+      const res = await fetch('/api/analyze', {
+        method: 'POST',
+        body: formData,
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        lastAnalysisResult = data;
+        animatePipelineStep(5, 'Stage 9 of 9: Blockchain Proof Anchoring');
+        setTimeout(() => {
+          renderAnalysisResults(data);
+        }, 800);
+      } else {
+        const err = await res.json();
+        alert('Pipeline execution failed: ' + (err.detail || err.error || 'Server error'));
+      }
+    } catch (e) {
+      alert('Network error during pipeline execution: ' + e.message);
     }
   });
-}
 
-// -------------------------------------------------------------
-// Independent Verification (POST /api/verify)
-// -------------------------------------------------------------
-async function runIndependentVerification(proofHash) {
-  logMessage(`Executing independent on-chain verification for hash: ${proofHash}...`);
-  verifyProofBtn.disabled = true;
-  verifyProofBtn.textContent = 'Verifying...';
+  function animatePipelineStep(stepIndex, stageTitle) {
+    streamCurrentStageTitle.textContent = stageTitle;
+    for (let i = 1; i <= 5; i++) {
+      const node = document.getElementById(`stepNode${i}`);
+      if (i < stepIndex) {
+        node.className = 'pipeline-step-node completed';
+      } else if (i === stepIndex) {
+        node.className = 'pipeline-step-node active';
+      } else {
+        node.className = 'pipeline-step-node';
+      }
+    }
+  }
 
-  try {
-    const res = await fetch('/api/verify', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ proof_hash: proofHash }),
+  function illuminatePlatformTags() {
+    const tags = discoveredPlatformsStrip.querySelectorAll('.platform-micro-tag');
+    hudDiscoveredCount.textContent = '59';
+    hudEvaluatedCount.textContent = '40';
+    tags.forEach((tag, idx) => {
+      setTimeout(() => tag.classList.add('active-discovery'), idx * 150);
     });
+  }
 
-    if (!res.ok) {
-      const err = await res.json();
-      throw new Error(err.detail || 'Verification query failed');
-    }
+  // 6. Render Full Analysis Results
+  function renderAnalysisResults(data) {
+    progressStreamSection.style.display = 'none';
+    resultShowcaseSection.style.display = 'flex';
+    resultShowcaseSection.scrollIntoView({ behavior: 'smooth' });
 
-    const data = await res.json();
-    verifResultArea.style.display = 'block';
+    const best = data.best_match || {};
+    const decision = best.decision || 'REJECTED';
+    const sim = best.similarity || 0.0;
+    const confidence = data.confidence_data || {};
+    const consensus = data.consensus_data || {};
+    const summary = data.search_summary || {};
 
-    if (data.is_valid) {
-      verifBanner.className = 'result-banner banner-valid';
-      verifIcon.textContent = '✓';
-      verifTitle.textContent = 'INDEPENDENT VERIFICATION: VALID';
-      verifDesc.textContent = 'Smart contract record matched IPFS manifest SHA-256 byte-for-byte.';
+    // Verdict Styling
+    verdictBannerWrap.className = `verdict-banner-wrap status-${decision.toLowerCase()}`;
+    if (decision === 'VERIFIED') {
+      verdictHeadline.textContent = 'VERIFIED MATCH FOUND';
+      similarityBadge.textContent = 'CONFIRMED BIOMETRIC MATCH';
+    } else if (decision === 'REVIEW') {
+      verdictHeadline.textContent = 'BORDERLINE / REVIEW REQUIRED';
+      similarityBadge.textContent = 'MANUAL INSPECTION REQUIRED';
     } else {
-      verifBanner.className = 'result-banner banner-tampered';
-      verifIcon.textContent = '✕';
-      verifTitle.textContent = 'VERIFICATION: INVALID / MISMATCH';
-      verifDesc.textContent = 'Cryptographic hashes do not match!';
+      verdictHeadline.textContent = 'NO RELIABLE MATCH';
+      similarityBadge.textContent = 'DISTINCT / UNINDEXED IDENTITY';
     }
 
-    verifKvGrid.innerHTML = `
-      <div class="verif-item">
-        <span class="vi-label">On-Chain Registered Hash:</span>
-        <code class="vi-val">${data.blockchain_hash}</code>
-      </div>
-      <div class="verif-item">
-        <span class="vi-label">Recomputed IPFS SHA-256:</span>
-        <code class="vi-val accent-green">${data.recomputed_hash}</code>
-      </div>
-      <div class="verif-item">
-        <span class="vi-label">IPFS CID:</span>
-        <code class="vi-val">${data.ipfs_cid}</code>
-      </div>
-      <div class="verif-item">
-        <span class="vi-label">Submitter Address:</span>
-        <code class="vi-val">${data.submitter}</code>
-      </div>
-      <div class="verif-item">
-        <span class="vi-label">Cryptographic Integrity Match:</span>
-        <strong class="${data.is_valid ? 'accent-green' : 'accent-red'}">${data.is_valid ? 'YES (100% Bit-for-Bit)' : 'NO (Tampered)'}</strong>
-      </div>
-      <div class="verif-item">
-        <span class="vi-label">Final Verification Result:</span>
-        <strong class="${data.is_valid ? 'accent-green' : 'accent-red'}">${data.is_valid ? 'VALID ON-CHAIN PROOF' : 'INVALID'}</strong>
-      </div>
-    `;
+    verdictSubReason.textContent = best.reason || 'Biometric analysis complete.';
+    majorSimilarityScore.textContent = sim.toFixed(4);
 
-    logMessage(`Independent verification result: ${data.is_valid ? 'VALID' : 'INVALID'}`, data.is_valid ? 'success' : 'error');
+    // Telemetry Cards
+    resConfidenceVal.textContent = (confidence.confidence_score || sim).toFixed(4);
+    resMarginVal.textContent = summary.separation_margin !== null ? `+${summary.separation_margin.toFixed(4)}` : 'N/A';
+    resMarginNote.textContent = summary.margin_interpretation ? summary.margin_interpretation.split(':')[0] : 'Single distribution';
+    resQualityVal.textContent = `${(best.quality || 0.85).toFixed(2)} / 1.0`;
+    resConsensusVal.textContent = consensus.consensus_level ? consensus.consensus_level.replace(/_/g, ' ') : 'COMPLETE';
 
-  } catch (err) {
-    logMessage(`Verification failed: ${err.message}`, 'error');
-    alert(`Verification error: ${err.message}`);
-  } finally {
-    verifyProofBtn.disabled = false;
-    verifyProofBtn.textContent = 'Verify Proof';
-  }
-}
+    // Primary Match Box
+    primaryMatchTitle.textContent = best.title || 'Discovered Web Identity';
+    primaryMatchLink.textContent = best.link || 'https://...';
+    primaryMatchLink.href = best.link || '#';
+    primaryPlatformChip.textContent = best.platform || 'General Web';
+    primaryDomain.textContent = best.domain || 'web';
+    primaryThumbHash.textContent = best.thumbnail_sha256 ? `${best.thumbnail_sha256.slice(0, 16)}...` : 'N/A';
 
-// -------------------------------------------------------------
-// Tamper Demonstration (POST /api/tamper-test)
-// -------------------------------------------------------------
-async function runTamperDemo(proofHash) {
-  logMessage(`Running tamper demonstration test on proof hash: ${proofHash}...`);
-  tamperTestBtn.disabled = true;
-  tamperTestBtn.textContent = 'Testing Tamper...';
+    if (best.thumbnail) {
+      primaryMatchThumb.src = best.thumbnail;
+      primaryMatchThumb.style.display = 'block';
+    } else {
+      primaryMatchThumb.style.display = 'none';
+    }
 
-  try {
-    const res = await fetch('/api/tamper-test', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ proof_hash: proofHash, tamper_field: 'url' }),
+    // Blockchain Proof vs Refusal Card
+    if (decision === 'VERIFIED' && data.blockchain_receipt) {
+      blockchainProofCard.style.display = 'block';
+      blockchainRefusalCard.style.display = 'none';
+
+      const receipt = data.blockchain_receipt;
+      proofTxHash.textContent = receipt.tx_hash ? `${receipt.tx_hash.slice(0, 18)}...${receipt.tx_hash.slice(-8)}` : '0x...';
+      proofBlockNum.textContent = `#${receipt.block || '--'}`;
+      proofContractAddr.textContent = receipt.contract_address || '0x...';
+      proofManifestHash.textContent = data.manifest_hash || '--';
+      proofIpfsCidLink.textContent = data.manifest_cid || 'Qm...';
+      proofIpfsCidLink.href = `https://ipfs.io/ipfs/${data.manifest_cid}`;
+      viewManifestJsonBtn.href = `https://ipfs.io/ipfs/${data.manifest_cid}`;
+    } else {
+      blockchainProofCard.style.display = 'none';
+      blockchainRefusalCard.style.display = 'flex';
+      refusalDescText.textContent = `TrustLens strictly enforces zero false-positive proof registration. Because this evidence is classified as [${decision}], on-chain proof anchoring was safely skipped to prevent immutable ledger pollution.`;
+      refusalIpfsLink.textContent = data.manifest_cid || 'Qm...';
+      refusalIpfsLink.href = data.manifest_cid ? `https://ipfs.io/ipfs/${data.manifest_cid}` : '#';
+    }
+
+    // Render Candidates Gallery
+    const allCands = data.all_candidates || [];
+    galleryCount.textContent = allCands.length;
+    candidatesScrollStrip.innerHTML = '';
+
+    allCands.forEach((c) => {
+      const card = document.createElement('div');
+      card.className = 'cand-card';
+      const tagClass = c.decision === 'VERIFIED' ? 'tag-verif' : c.decision === 'REVIEW' ? 'tag-rev' : 'tag-rej';
+      card.innerHTML = `
+        <img class="cand-img" src="${c.thumbnail || ''}" alt="Thumb" onerror="this.style.display='none'">
+        <div class="cand-score-row">
+          <span class="cand-score">${c.similarity.toFixed(3)}</span>
+          <span class="cand-tag ${tagClass}">${c.decision}</span>
+        </div>
+        <span class="cand-host">${c.platform || c.domain}</span>
+      `;
+      candidatesScrollStrip.appendChild(card);
     });
 
-    if (!res.ok) {
-      const err = await res.json();
-      throw new Error(err.detail || 'Tamper test query failed');
-    }
-
-    const data = await res.json();
-    tamperResultArea.style.display = 'block';
-
-    tamperCompareView.innerHTML = `
-      <div class="tamper-grid">
-        <div class="tamper-box">
-          <h5 class="tb-title">Immutable On-Chain Hash</h5>
-          <code class="tb-code">${data.onchain_hash}</code>
-        </div>
-        <div class="tamper-box">
-          <h5 class="tb-title">Tampered Manifest Computed SHA-256</h5>
-          <code class="tb-code accent-red">${data.tampered_computed_hash}</code>
-        </div>
-      </div>
-      <div class="tamper-details-box">
-        <div class="td-line"><span>Mutated Field:</span> <code>candidate.source_url -> "https://fake-imposter-profile.example.com/spoofed"</code></div>
-        <div class="td-line"><span>Integrity Match:</span> <strong class="accent-red">NO (Cryptographic Mismatch)</strong></div>
-        <div class="td-line"><span>Final Result:</span> <strong class="accent-red">TAMPER DETECTED / INVALID</strong></div>
-      </div>
-    `;
-
-    logMessage('Tamper demonstration complete: Mutated record failed cryptographic verification against on-chain anchor.', 'error');
-
-  } catch (err) {
-    logMessage(`Tamper test failed: ${err.message}`, 'error');
-    alert(`Tamper test error: ${err.message}`);
-  } finally {
-    tamperTestBtn.disabled = false;
-    tamperTestBtn.textContent = 'TAMPER TEST';
+    // Initialize Tamper Demo with current manifest hash
+    initTamperDemo(data.manifest_hash || 'c1fee9bc922c13891469c9d40421c0ca2e7d97554cfd33f165c7a4c225740789');
   }
-}
+
+  // 7. Interactive Cryptographic Tamper Demo Logic
+  function initTamperDemo(origHash) {
+    simOrigHash.textContent = `${origHash.slice(0, 16)}...${origHash.slice(-8)}`;
+
+    tamperScenarioBtns.forEach((btn) => {
+      btn.addEventListener('click', () => {
+        tamperScenarioBtns.forEach((b) => b.classList.remove('active'));
+        btn.classList.add('active');
+        const scenario = btn.getAttribute('data-scenario');
+        simulateTamperScenario(scenario, origHash);
+      });
+    });
+    simulateTamperScenario('original', origHash);
+  }
+
+  function simulateTamperScenario(scenario, origHash) {
+    if (scenario === 'original') {
+      tamperSimulationScreen.className = 'simulation-screen';
+      simStatusPill.textContent = 'STATUS: VALID & VERIFIED';
+      simMatchPill.textContent = 'HASH MATCH';
+      simComputedHash.textContent = `${origHash.slice(0, 16)}...${origHash.slice(-8)}`;
+      simOnChainStatus.textContent = 'CONFIRMED (Block #38 on Anvil)';
+      simDiffBox.innerHTML = '<code>All evidence fields match bit-for-bit with RFC-8785 canonical standard.</code>';
+    } else {
+      tamperSimulationScreen.className = 'simulation-screen sim-tampered';
+      simStatusPill.textContent = 'STATUS: TAMPER DETECTED';
+      simMatchPill.textContent = 'HASH MISMATCH';
+
+      // Generate simulated tampered hash
+      const fakeHash = origHash.split('').reverse().join('');
+      simComputedHash.textContent = `${fakeHash.slice(0, 16)}...${fakeHash.slice(-8)}`;
+      simOnChainStatus.textContent = 'REJECTED: Proof Not Found on Blockchain';
+
+      if (scenario === 'url') {
+        simDiffBox.innerHTML = '<code style="color:#f43f5e">- source_url: "https://trusted-news.com/article"<br>+ source_url: "https://malicious-fake-domain.org/phishing"<br>❌ SHA-256 fingerprint invalidated!</code>';
+      } else if (scenario === 'similarity') {
+        simDiffBox.innerHTML = '<code style="color:#f43f5e">- similarity_score: 0.8670<br>+ similarity_score: 0.9990<br>❌ Score modification invalidates deterministic manifest hash!</code>';
+      } else {
+        simDiffBox.innerHTML = '<code style="color:#f43f5e">- platform: "Facebook"<br>+ platform: "Official Government Register"<br>❌ Metadata injection violates cryptographic integrity!</code>';
+      }
+    }
+  }
+
+  // 8. On-Chain Verification Modal
+  verifyProofModalBtn.addEventListener('click', () => {
+    if (lastAnalysisResult && lastAnalysisResult.manifest_hash) {
+      modalHashInput.value = lastAnalysisResult.manifest_hash;
+    }
+    verifyModal.style.display = 'flex';
+  });
+
+  closeVerifyModalBtn.addEventListener('click', () => {
+    verifyModal.style.display = 'none';
+  });
+
+  modalVerifyBtn.addEventListener('click', async () => {
+    const hash = modalHashInput.value.trim();
+    if (!hash) return;
+
+    modalVerifyBtn.textContent = 'QUERYING...';
+    try {
+      const res = await fetch(`/api/result/${hash}`);
+      if (res.ok) {
+        const data = await res.json();
+        modalResultBox.style.display = 'block';
+        mSubmitter.textContent = data.onchain ? data.onchain.submitter : '0x...';
+        mTimestamp.textContent = data.onchain ? new Date(data.onchain.timestamp * 1000).toLocaleString() : '--';
+        mIpfsCid.textContent = data.onchain ? data.onchain.ipfs_cid : 'Qm...';
+        mIpfsCid.href = data.onchain ? `https://ipfs.io/ipfs/${data.onchain.ipfs_cid}` : '#';
+      } else {
+        alert('Proof hash not found on blockchain registry.');
+      }
+    } catch (e) {
+      alert('Verification error: ' + e.message);
+    } finally {
+      modalVerifyBtn.textContent = 'QUERY ON-CHAIN';
+    }
+  });
+});

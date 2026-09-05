@@ -34,7 +34,9 @@ from pipeline.face_id import (
 from pipeline.search import reverse_image_search, filter_social_matches
 from pipeline.fingerprint import (
     build_evidence_manifest,
+    calculate_dynamic_confidence,
     calculate_separation_margin,
+    compute_candidate_consensus,
     sha256_of_json,
     sha256_of_bytes,
 )
@@ -117,6 +119,7 @@ def evaluate_candidates_concurrently(
     review_threshold: float,
     max_workers: int = 8,
     max_candidates: int = DEFAULT_MAX_CANDIDATES,
+    query_multiview: Optional[dict[str, Any]] = None,
 ) -> tuple[list[dict[str, Any]], int]:
     """Concurrently download and independently evaluate candidate thumbnails in-memory.
 
@@ -127,6 +130,7 @@ def evaluate_candidates_concurrently(
         review_threshold: Similarity cutoff for REVIEW status.
         max_workers: Thread pool size for bounded concurrent I/O.
         max_candidates: Maximum candidates to process (bounded top-K).
+        query_multiview: Optional multi-view query representation dictionary.
 
     Returns:
         (evaluated_results, usable_images_count)
@@ -173,7 +177,7 @@ def evaluate_candidates_concurrently(
                 continue
 
             # Compare query face against ALL detected faces in candidate group photo
-            group_eval = compare_group_faces(query_emb, cand_faces)
+            group_eval = compare_group_faces(query_emb, cand_faces, query_multiview=query_multiview)
             best_sim = group_eval["best_similarity"]
             best_cand_face = group_eval["best_candidate_face"]
             cand_quality = best_cand_face["quality"]["overall_quality"]
@@ -317,6 +321,7 @@ def run_pipeline(
         verified_threshold,
         review_threshold,
         max_workers=8,
+        query_multiview=query_analysis.get("multiview"),
     )
     timings["5_cand_eval"] = time.perf_counter() - t0
     print(f"      -> Evaluated {len(verified_results)} candidate faces across {usable_images_count} thumbnails in {timings['5_cand_eval']:.3f} s")
@@ -324,7 +329,7 @@ def run_pipeline(
     # ---------------------------------------------------------
     # [6/9] Candidate Ranking & Separation Margin Analysis
     # ---------------------------------------------------------
-    print("\n[6/9] Ranking candidates and calculating separation margin")
+    print("\n[6/9] Ranking candidates, calculating separation margin & consensus clustering")
     t0 = time.perf_counter()
     decision_priority = {"VERIFIED": 3, "REVIEW": 2, "REJECTED": 1}
     verified_results.sort(
@@ -346,6 +351,10 @@ def run_pipeline(
     rejected_sims = [r["similarity"] for r in (review_matches + rejected_matches)]
     margin_data = calculate_separation_margin(verified_sims, rejected_sims)
     sep_margin = margin_data["separation_margin"]
+
+    # Compute consensus clustering & cross-candidate agreement
+    consensus_data = compute_candidate_consensus(verified_results, verified_threshold=verified_threshold)
+
     timings["6_ranking"] = time.perf_counter() - t0
 
     print("\n  ====================================================================")
@@ -356,6 +365,8 @@ def run_pipeline(
     print(f"  VERIFIED Matches            : {len(verified_matches)}")
     print(f"  REVIEW Candidates           : {len(review_matches)}")
     print(f"  REJECTED Candidates         : {len(rejected_matches)}")
+    print(f"  Identity Consensus Level    : {consensus_data['consensus_level']}")
+    print(f"  Supporting Verified Images  : {consensus_data['total_supporting']} across {consensus_data['platform_count']} platform(s)")
     if sep_margin is not None:
         print(f"  Best Verified Similarity    : {margin_data['best_verified_similarity']:.4f}")
         print(f"  Best Rejected Similarity    : {margin_data['best_rejected_similarity']:.4f}")
@@ -399,6 +410,15 @@ def run_pipeline(
     candidate_quality = best_result["image_quality"]
     thumbnail_sha256 = best_result["thumbnail_sha256"]
 
+    # Compute dynamic identity confidence
+    confidence_data = calculate_dynamic_confidence(
+        similarity=similarity_score,
+        candidate_quality=candidate_quality,
+        separation_margin=sep_margin,
+        cross_result_agreement=consensus_data["agreement_ratio"],
+        platform_diversity=consensus_data["platform_count"],
+    )
+
     # ---------------------------------------------------------
     # [7/9] Canonical Evidence Manifest Generation (RFC-8785)
     # ---------------------------------------------------------
@@ -423,10 +443,13 @@ def run_pipeline(
         separation_margin=sep_margin,
         margin_interpretation=margin_data.get("margin_interpretation"),
         thumbnail_sha256=thumbnail_sha256,
+        confidence_data=confidence_data,
+        consensus_data=consensus_data,
     )
     timings["7_manifest"] = time.perf_counter() - t0
     print(f"      -> Manifest Schema      : {manifest.get('schema_version')}")
     print(f"      -> Decision Verdict     : [{decision}]")
+    print(f"      -> Dynamic Confidence   : {confidence_data['confidence_score']:.4f}")
     print(f"      -> Subject / Source URL : {matched_candidate.get('link')}")
     print(f"      -> Platform Category    : {matched_candidate.get('platform')}")
     print(f"      -> Canonical SHA256 Hash: {manifest_hash}")
