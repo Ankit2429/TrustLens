@@ -7,394 +7,394 @@
   <meta name="description" content="Decentralized biometric facial discovery, independent 512-d ArcFace verification, and cryptographic blockchain proof anchoring.">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500;600;700&family=Space+Grotesk:wght@300;400;500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="style.css">
 </head>
 <body class="app-body">
-  <!-- Subtle atmospheric background elements -->
-  <div class="bg-radial-glow"></div>
-  <div class="bg-grid-overlay"></div>
+  <!-- Subtle atmospheric background vignette -->
+  <div class="bg-radial-vignette"></div>
+  <div class="bg-noise-grain"></div>
 
-  <!-- Top Navigation / Status Header -->
+  <!-- Top Navigation / Telemetry Header -->
   <header class="app-header">
     <div class="header-content">
       <div class="brand-cluster">
-        <div class="brand-lens-icon">
-          <span class="lens-iris"></span>
-          <span class="lens-pupil"></span>
+        <div class="brand-lens-glyph">
+          <span class="glyph-ring"></span>
+          <span class="glyph-core"></span>
         </div>
-        <div class="brand-text-wrap">
-          <span class="brand-title">TRUSTLENS</span>
-          <span class="system-status-chip">
+        <div class="brand-meta-group">
+          <span class="brand-wordmark">TRUSTLENS</span>
+          <span class="status-indicator-pill">
             <span class="status-pulse-dot"></span>
-            <span class="status-text" id="systemStatusText">LIVE / READY</span>
+            <span class="status-label">L I V E   /   R E A D Y</span>
           </span>
         </div>
       </div>
 
-      <div class="system-telemetry-pills">
-        <span class="tech-pill">ARCFACE 512D</span>
-        <span class="tech-pill">LIVE SEARCH</span>
-        <span class="tech-pill">IPFS PINATA</span>
-        <span class="tech-pill tech-pill-network" id="networkTelemetryPill">
-          <span class="network-dot"></span>
-          <span id="networkNameLabel">ANVIL (31337)</span>
-          <span class="block-indicator" id="headerBlockNum">#--</span>
+      <div class="telemetry-chips-row">
+        <span class="tech-chip">A R C - F A C E   5 1 2 D</span>
+        <span class="tech-chip">L I V E   S E A R C H</span>
+        <span class="tech-chip">I P F S</span>
+        <span class="tech-chip chip-network" id="networkTelemetryPill">
+          <span class="chip-dot"></span>
+          <span id="networkNameLabel">A N V I L   3 1 3 3 7</span>
+          <span class="block-counter" id="headerBlockNum">#--</span>
         </span>
-        <a class="tech-pill tech-pill-contract" id="contractTelemetryPill" href="#" target="_blank" rel="noopener noreferrer">
-          0x...
+        <a class="tech-chip chip-contract" id="contractTelemetryPill" href="#" target="_blank" rel="noopener noreferrer">
+          0 x . . .
         </a>
       </div>
     </div>
   </header>
 
-  <!-- Main Container -->
-  <main class="main-stage">
+  <!-- Main Workspace -->
+  <main class="main-workspace">
 
-    <!-- HERO / LANDING SECTION -->
-    <section class="hero-section" id="heroSection">
-      <div class="hero-brand-mark">
-        <div class="brand-aperture-visual">
-          <div class="aperture-ring-outer"></div>
-          <div class="aperture-ring-mid"></div>
-          <div class="aperture-core-glow"></div>
-          <svg class="aperture-svg" viewBox="0 0 100 100" fill="none" stroke="currentColor">
-            <polygon points="50,15 85,35 85,75 50,95 15,75 15,35" stroke-width="1.5" stroke="rgba(255,255,255,0.2)"/>
-            <circle cx="50" cy="50" r="18" stroke-width="1.5" stroke="rgba(59, 130, 246, 0.8)"/>
-            <line x1="50" y1="20" x2="50" y2="80" stroke-width="1" stroke="rgba(255,255,255,0.15)"/>
-            <line x1="20" y1="50" x2="80" y2="50" stroke-width="1" stroke="rgba(255,255,255,0.15)"/>
+    <!-- HERO / LANDING VIEW -->
+    <section class="hero-stage" id="heroSection">
+      <div class="hero-brand-block">
+        <div class="hero-lens-emblem">
+          <div class="emblem-outer-orbit"></div>
+          <div class="emblem-inner-ring"></div>
+          <div class="emblem-center-glow"></div>
+          <svg class="emblem-reticle" viewBox="0 0 100 100" fill="none" stroke="currentColor">
+            <circle cx="50" cy="50" r="32" stroke-width="1" stroke="rgba(255,255,255,0.15)"/>
+            <circle cx="50" cy="50" r="14" stroke-width="1.2" stroke="rgba(56,189,248,0.75)"/>
+            <line x1="50" y1="12" x2="50" y2="88" stroke-width="0.8" stroke="rgba(255,255,255,0.12)"/>
+            <line x1="12" y1="50" x2="88" y2="50" stroke-width="0.8" stroke="rgba(255,255,255,0.12)"/>
           </svg>
         </div>
-        <h1 class="hero-headline">TRUST<span class="headline-dim">LENS</span></h1>
-        <p class="hero-tagline">Identify. Verify. Prove.</p>
-        <p class="hero-subtext">Search the indexed web, independently verify candidate faces with 512-d ArcFace biometrics, and anchor tamper-evident cryptographic proofs to the blockchain.</p>
+        
+        <h1 class="hero-display-title">TRUST<span class="title-light">LENS</span></h1>
+        <p class="hero-kicker-tagline">Identify. Verify. Prove.</p>
+        <p class="hero-manifesto-subtext">Search the indexed web, independently verify candidate faces with 512-dimensional ArcFace biometrics, and anchor tamper-evident cryptographic proofs to the blockchain.</p>
       </div>
 
       <!-- Central Upload & Drop Interaction Control -->
-      <div class="upload-control-zone">
-        <div class="drop-lens-card" id="dropzone">
+      <div class="upload-interaction-deck">
+        <div class="central-drop-zone" id="dropzone">
           <input type="file" id="fileInput" accept="image/jpeg,image/png,image/webp" style="display:none">
-          <div class="dropzone-idle-content" id="dropzoneIdle">
-            <div class="drop-plus-icon">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          
+          <div class="drop-idle-panel" id="dropzoneIdle">
+            <div class="drop-plus-capsule">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75">
                 <line x1="12" y1="5" x2="12" y2="19"/>
                 <line x1="5" y1="12" x2="19" y2="12"/>
               </svg>
             </div>
-            <p class="drop-primary-prompt">DROP IMAGE OR SELECT FACE</p>
-            <p class="drop-secondary-prompt">Drag & drop JPG, PNG, WEBP or click to browse</p>
-            <span class="drop-policy-tag">Public indexed content only • CPU InsightFace Buffalo_L</span>
+            <p class="drop-main-command">+ DROP IMAGE OR SELECT FACE</p>
+            <p class="drop-format-hint">JPG, PNG, WEBP • Drag & drop or browse local files</p>
+            <span class="drop-policy-caption">P U B L I C   I N D E X E D   C O N T E N T   O N L Y</span>
           </div>
 
-          <!-- Active Preview with Face Overlays -->
-          <div class="dropzone-preview-wrap" id="previewWrap" style="display:none">
+          <!-- Active Face Preview Canvas -->
+          <div class="face-preview-viewport" id="previewWrap" style="display:none">
             <canvas id="faceCanvas"></canvas>
-            <div class="preview-hud-strip" id="previewHudStrip">
-              <span class="hud-pill" id="hudFaceCount">1 Face</span>
-              <span class="hud-pill" id="hudFaceQuality">Quality: --</span>
-              <span class="hud-pill" id="hudFaceConf">Conf: --</span>
+            <div class="preview-telemetry-hud" id="previewHudStrip">
+              <span class="hud-chip" id="hudFaceCount">1 FACE DETECTED</span>
+              <span class="hud-chip" id="hudFaceQuality">QUALITY: --</span>
+              <span class="hud-chip" id="hudFaceConf">CONFIDENCE: --</span>
             </div>
           </div>
         </div>
 
-        <!-- Multi-Face Candidate Selector Bar (Appears when >1 faces detected) -->
-        <div class="multi-face-bar" id="multiFaceBar" style="display:none">
-          <span class="multi-face-label">SELECT TARGET SUBJECT FACE:</span>
-          <div class="multi-face-chips" id="multiFaceChips"></div>
+        <!-- Multi-Face Subject Selector Bar -->
+        <div class="multi-face-tray" id="multiFaceBar" style="display:none">
+          <span class="tray-label">TARGET FACE SELECTION:</span>
+          <div class="tray-chips-wrap" id="multiFaceChips"></div>
         </div>
 
-        <!-- Quick Demo Presets -->
-        <div class="demo-presets-row">
-          <span class="presets-label">DEMO PRESETS:</span>
-          <button class="preset-chip" id="presetSatyaBtn" type="button">
-            <span class="preset-dot dot-match"></span> Satya Nadella (Verified)
+        <!-- Preset Fast-Loaders -->
+        <div class="presets-row">
+          <span class="presets-kicker">DEMO PRESETS:</span>
+          <button class="preset-pill" id="presetSatyaBtn" type="button">
+            <span class="preset-indicator ind-match"></span> Satya Nadella (Verified)
           </button>
-          <button class="preset-chip" id="presetUnindexedBtn" type="button">
-            <span class="preset-dot dot-review"></span> Unindexed (Skip Proof)
+          <button class="preset-pill" id="presetUnindexedBtn" type="button">
+            <span class="preset-indicator ind-review"></span> Unindexed (Skip Proof)
           </button>
-          <button class="preset-chip" id="presetGroupBtn" type="button">
-            <span class="preset-dot dot-group"></span> Jobs & Gates (Group Photo)
+          <button class="preset-pill" id="presetGroupBtn" type="button">
+            <span class="preset-indicator ind-group"></span> Jobs & Gates (Group Photo)
           </button>
         </div>
 
-        <!-- Action Button Strip -->
-        <div class="action-strip" id="actionStrip" style="display:none">
-          <button class="btn btn-primary" id="startPipelineBtn">
-            <span class="btn-glow"></span>
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="btn-icon">
+        <!-- Floating Action Deck -->
+        <div class="action-deck-row" id="actionStrip" style="display:none">
+          <button class="action-btn-primary" id="startPipelineBtn">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="btn-glyph">
               <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
             </svg>
             EXECUTE TRUSTLENS PIPELINE
           </button>
-          <button class="btn btn-secondary" id="resetImageBtn">CANCEL / RESET</button>
+          <button class="action-btn-ghost" id="resetImageBtn">RESET</button>
         </div>
       </div>
     </section>
 
-    <!-- PIPELINE PROGRESS STREAM -->
-    <section class="progress-stream-section" id="progressStreamSection" style="display:none">
-      <div class="stream-header">
-        <span class="stream-badge">LIVE ANALYSIS IN PROGRESS</span>
-        <h2 class="stream-title" id="streamCurrentStageTitle">Stage 1 of 9: Detecting Face & Evaluating Quality</h2>
+    <!-- LIVE PIPELINE PROGRESSION STREAM -->
+    <section class="pipeline-progress-stage" id="progressStreamSection" style="display:none">
+      <div class="stage-banner-header">
+        <span class="stage-badge-chip">L I V E   A N A L Y S I S</span>
+        <h2 class="stage-status-title" id="streamCurrentStageTitle">Stage 1 of 9: Face Landmark Alignment & Quality Gate</h2>
       </div>
 
-      <div class="linear-pipeline-stepper">
-        <div class="pipeline-step-node" id="stepNode1">
-          <div class="step-indicator"><span class="step-number">01</span><span class="step-dot"></span></div>
-          <span class="step-label">FACE</span>
+      <div class="linear-progress-stepper">
+        <div class="step-cell" id="stepNode1">
+          <div class="step-capsule"><span class="step-num-mono">01</span></div>
+          <span class="step-text-label">FACE</span>
         </div>
-        <div class="pipeline-step-connector"></div>
-        <div class="pipeline-step-node" id="stepNode2">
-          <div class="step-indicator"><span class="step-number">02</span><span class="step-dot"></span></div>
-          <span class="step-label">SEARCH</span>
+        <div class="step-track-divider"></div>
+        <div class="step-cell" id="stepNode2">
+          <div class="step-capsule"><span class="step-num-mono">02</span></div>
+          <span class="step-text-label">SEARCH</span>
         </div>
-        <div class="pipeline-step-connector"></div>
-        <div class="pipeline-step-node" id="stepNode3">
-          <div class="step-indicator"><span class="step-number">03</span><span class="step-dot"></span></div>
-          <span class="step-label">VERIFY</span>
+        <div class="step-track-divider"></div>
+        <div class="step-cell" id="stepNode3">
+          <div class="step-capsule"><span class="step-num-mono">03</span></div>
+          <span class="step-text-label">VERIFY</span>
         </div>
-        <div class="pipeline-step-connector"></div>
-        <div class="pipeline-step-node" id="stepNode4">
-          <div class="step-indicator"><span class="step-number">04</span><span class="step-dot"></span></div>
-          <span class="step-label">EVIDENCE</span>
+        <div class="step-track-divider"></div>
+        <div class="step-cell" id="stepNode4">
+          <div class="step-capsule"><span class="step-num-mono">04</span></div>
+          <span class="step-text-label">EVIDENCE</span>
         </div>
-        <div class="pipeline-step-connector"></div>
-        <div class="pipeline-step-node" id="stepNode5">
-          <div class="step-indicator"><span class="step-number">05</span><span class="step-dot"></span></div>
-          <span class="step-label">PROOF</span>
+        <div class="step-track-divider"></div>
+        <div class="step-cell" id="stepNode5">
+          <div class="step-capsule"><span class="step-num-mono">05</span></div>
+          <span class="step-text-label">PROOF</span>
         </div>
       </div>
 
-      <!-- Live Discovery HUD (Shows candidate stream during search) -->
-      <div class="live-discovery-hud" id="liveDiscoveryHud" style="display:none">
-        <div class="hud-stats-row">
-          <span class="hud-stat-item"><strong id="hudDiscoveredCount">0</strong> Candidates Discovered</span>
-          <span class="hud-stat-divider">•</span>
-          <span class="hud-stat-item"><strong id="hudEvaluatedCount">0</strong> Candidate Faces Evaluated</span>
+      <!-- Live Discovery Stream HUD -->
+      <div class="discovery-stream-hud" id="liveDiscoveryHud" style="display:none">
+        <div class="discovery-metrics-row">
+          <span class="disc-metric"><strong id="hudDiscoveredCount">0</strong> CANDIDATES DISCOVERED</span>
+          <span class="disc-separator">•</span>
+          <span class="disc-metric"><strong id="hudEvaluatedCount">0</strong> CANDIDATE FACES EVALUATED</span>
         </div>
-        <div class="discovered-platforms-strip" id="discoveredPlatformsStrip">
-          <span class="platform-micro-tag">X</span>
-          <span class="platform-micro-tag">YouTube</span>
-          <span class="platform-micro-tag">LinkedIn</span>
-          <span class="platform-micro-tag">Facebook</span>
-          <span class="platform-micro-tag">Instagram</span>
-          <span class="platform-micro-tag">Reddit</span>
-          <span class="platform-micro-tag">News</span>
-          <span class="platform-micro-tag">General Web</span>
+        <div class="platform-indicators-deck" id="discoveredPlatformsStrip">
+          <span class="platform-mono-tag">X</span>
+          <span class="platform-mono-tag">YouTube</span>
+          <span class="platform-mono-tag">LinkedIn</span>
+          <span class="platform-mono-tag">Facebook</span>
+          <span class="platform-mono-tag">Instagram</span>
+          <span class="platform-mono-tag">Reddit</span>
+          <span class="platform-mono-tag">News</span>
+          <span class="platform-mono-tag">General Web</span>
         </div>
       </div>
     </section>
 
-    <!-- DOMINANT RESULT SHOWCASE -->
-    <section class="result-showcase-section" id="resultShowcaseSection" style="display:none">
+    <!-- DOMINANT RESULT MONOLITH -->
+    <section class="result-monolith-stage" id="resultShowcaseSection" style="display:none">
       
-      <!-- Dominant Verdict Banner -->
-      <div class="verdict-banner-wrap" id="verdictBannerWrap">
-        <div class="verdict-header-row">
-          <div class="verdict-left">
-            <span class="verdict-tag" id="verdictTag">VERIFICATION RESULT</span>
-            <h2 class="verdict-headline" id="verdictHeadline">VERIFIED MATCH FOUND</h2>
-            <p class="verdict-sub-reason" id="verdictSubReason">Face similarity exceeds verified threshold and candidate passed quality checks</p>
+      <!-- Dominant Verdict Showcase Header -->
+      <div class="verdict-showcase-panel" id="verdictBannerWrap">
+        <div class="verdict-top-bar">
+          <div class="verdict-title-cluster">
+            <span class="verdict-eyebrow" id="verdictTag">V E R I F I C A T I O N   R E S U L T</span>
+            <h2 class="verdict-main-headline" id="verdictHeadline">VERIFIED MATCH FOUND</h2>
+            <p class="verdict-rationale-text" id="verdictSubReason">Face similarity exceeds verified threshold and candidate passed quality checks.</p>
           </div>
-          <div class="verdict-score-cluster">
-            <div class="metric-block-major">
-              <span class="metric-label">ARCFACE SIMILARITY</span>
-              <span class="metric-value-huge" id="majorSimilarityScore">0.8670</span>
-              <span class="metric-badge" id="similarityBadge">CONFIRMED BIOMETRIC MATCH</span>
-            </div>
+          <div class="verdict-score-monolith">
+            <span class="score-kicker-label">ARCFACE SIMILARITY</span>
+            <span class="score-giant-number" id="majorSimilarityScore">0.8670</span>
+            <span class="score-status-tag" id="similarityBadge">CONFIRMED BIOMETRIC MATCH</span>
           </div>
         </div>
 
-        <!-- Telemetry Grid -->
-        <div class="telemetry-grid">
-          <div class="telemetry-card">
-            <span class="telemetry-label">DYNAMIC CONFIDENCE</span>
-            <span class="telemetry-val" id="resConfidenceVal">0.9124</span>
-            <span class="telemetry-note" id="resConfidenceNote">Multi-signal consensus</span>
+        <!-- Secondary Telemetry Row -->
+        <div class="telemetry-cards-matrix">
+          <div class="metric-card-box">
+            <span class="card-kicker-mono">DYNAMIC CONFIDENCE</span>
+            <span class="card-hero-val" id="resConfidenceVal">0.9124</span>
+            <span class="card-subnote" id="resConfidenceNote">Multi-signal consensus</span>
           </div>
-          <div class="telemetry-card">
-            <span class="telemetry-label">SEPARATION MARGIN</span>
-            <span class="telemetry-val" id="resMarginVal">+0.3646</span>
-            <span class="telemetry-note" id="resMarginNote">Clear differentiation</span>
+          <div class="metric-card-box">
+            <span class="card-kicker-mono">SEPARATION MARGIN</span>
+            <span class="card-hero-val" id="resMarginVal">+0.3646</span>
+            <span class="card-subnote" id="resMarginNote">Clear differentiation</span>
           </div>
-          <div class="telemetry-card">
-            <span class="telemetry-label">CANDIDATE QUALITY</span>
-            <span class="telemetry-val" id="resQualityVal">0.86 / 1.0</span>
-            <span class="telemetry-note">SCRFD / RetinaFace</span>
+          <div class="metric-card-box">
+            <span class="card-kicker-mono">CANDIDATE QUALITY</span>
+            <span class="card-hero-val" id="resQualityVal">0.86 / 1.0</span>
+            <span class="card-subnote">SCRFD / RetinaFace</span>
           </div>
-          <div class="telemetry-card">
-            <span class="telemetry-label">CONSENSUS LEVEL</span>
-            <span class="telemetry-val" id="resConsensusVal">STRONG</span>
-            <span class="telemetry-note" id="resConsensusNote">Multi-source agreement</span>
+          <div class="metric-card-box">
+            <span class="card-kicker-mono">CONSENSUS LEVEL</span>
+            <span class="card-hero-val" id="resConsensusVal">STRONG</span>
+            <span class="card-subnote" id="resConsensusNote">Multi-source agreement</span>
           </div>
         </div>
       </div>
 
-      <!-- Primary Match Card & Candidate Gallery -->
-      <div class="match-details-grid">
-        <div class="primary-subject-card">
-          <div class="card-section-title">TOP MATCHED SOURCE</div>
-          <div class="source-content-box">
-            <div class="source-thumb-box">
-              <img id="primaryMatchThumb" src="" alt="Candidate Thumbnail" class="source-thumb-img">
-              <span class="platform-chip" id="primaryPlatformChip">Platform</span>
+      <!-- Primary Match Source & Proof Anchoring Grid -->
+      <div class="provenance-grid-deck">
+        
+        <!-- Matched Source Card -->
+        <div class="provenance-panel-card">
+          <div class="panel-header-mono">TOP MATCHED SOURCE</div>
+          <div class="source-entity-body">
+            <div class="source-thumb-viewport">
+              <img id="primaryMatchThumb" src="" alt="Candidate" class="source-img-element">
+              <span class="platform-badge-mono" id="primaryPlatformChip">PLATFORM</span>
             </div>
-            <div class="source-meta-wrap">
-              <h3 class="source-title-text" id="primaryMatchTitle">Discovered Web Identity</h3>
-              <a class="source-url-link" id="primaryMatchLink" href="#" target="_blank" rel="noopener noreferrer">
+            <div class="source-narrative-meta">
+              <h3 class="source-headline-title" id="primaryMatchTitle">Discovered Web Identity</h3>
+              <a class="source-href-link" id="primaryMatchLink" href="#" target="_blank" rel="noopener noreferrer">
                 https://...
               </a>
-              <div class="source-fingerprint-meta">
-                <span class="meta-row"><strong class="mono-dim">Domain:</strong> <span class="mono-val" id="primaryDomain">--</span></span>
-                <span class="meta-row"><strong class="mono-dim">Thumb SHA-256:</strong> <span class="mono-val mono-hash" id="primaryThumbHash">--</span></span>
+              <div class="source-specs-list">
+                <div class="spec-item"><span class="spec-k">DOMAIN:</span> <span class="spec-v" id="primaryDomain">--</span></div>
+                <div class="spec-item"><span class="spec-k">THUMBNAIL HASH:</span> <span class="spec-v spec-hash" id="primaryThumbHash">--</span></div>
               </div>
             </div>
           </div>
         </div>
 
-        <!-- Blockchain Proof Card (Only for VERIFIED matches) -->
-        <div class="blockchain-proof-card" id="blockchainProofCard">
-          <div class="card-section-title">
+        <!-- On-Chain Proof Monolith Card (VERIFIED Only) -->
+        <div class="provenance-panel-card proof-card-highlight" id="blockchainProofCard">
+          <div class="panel-header-mono">
             <span>BLOCKCHAIN PROOF ANCHOR</span>
-            <span class="proof-status-badge" id="proofStatusBadge">ON-CHAIN CONFIRMED</span>
+            <span class="onchain-confirmed-badge" id="proofStatusBadge">ON-CHAIN CONFIRMED</span>
           </div>
 
-          <div class="proof-fields-stack">
-            <div class="proof-field">
-              <span class="proof-key">TRANSACTION HASH</span>
-              <span class="proof-val mono-hash" id="proofTxHash">0x...</span>
+          <div class="proof-specs-stack">
+            <div class="proof-spec-entry">
+              <span class="ps-key">TRANSACTION HASH</span>
+              <span class="ps-val ps-hash" id="proofTxHash">0x...</span>
             </div>
-            <div class="proof-field-row">
-              <div class="proof-field">
-                <span class="proof-key">BLOCK NUMBER</span>
-                <span class="proof-val" id="proofBlockNum">#--</span>
+            <div class="proof-spec-columns">
+              <div class="proof-spec-entry">
+                <span class="ps-key">BLOCK NUMBER</span>
+                <span class="ps-val" id="proofBlockNum">#--</span>
               </div>
-              <div class="proof-field">
-                <span class="proof-key">NETWORK</span>
-                <span class="proof-val" id="proofNetworkLabel">Anvil (31337)</span>
+              <div class="proof-spec-entry">
+                <span class="ps-key">NETWORK</span>
+                <span class="ps-val" id="proofNetworkLabel">Anvil (31337)</span>
               </div>
             </div>
-            <div class="proof-field">
-              <span class="proof-key">CONTRACT ADDRESS</span>
-              <span class="proof-val mono-hash" id="proofContractAddr">0x...</span>
+            <div class="proof-spec-entry">
+              <span class="ps-key">CONTRACT ADDRESS</span>
+              <span class="ps-val ps-hash" id="proofContractAddr">0x...</span>
             </div>
-            <div class="proof-field">
-              <span class="proof-key">CANONICAL SHA-256 MANIFEST HASH</span>
-              <span class="proof-val mono-hash" id="proofManifestHash">--</span>
+            <div class="proof-spec-entry">
+              <span class="ps-key">CANONICAL SHA-256 MANIFEST HASH</span>
+              <span class="ps-val ps-hash" id="proofManifestHash">--</span>
             </div>
-            <div class="proof-field">
-              <span class="proof-key">IPFS EVIDENCE CID</span>
-              <a class="proof-val mono-link" id="proofIpfsCidLink" href="#" target="_blank" rel="noopener noreferrer">Qm...</a>
+            <div class="proof-spec-entry">
+              <span class="ps-key">IPFS EVIDENCE CID</span>
+              <a class="ps-val ps-link" id="proofIpfsCidLink" href="#" target="_blank" rel="noopener noreferrer">Qm...</a>
             </div>
           </div>
 
-          <div class="proof-action-row">
-            <button class="btn btn-outline btn-sm" id="verifyProofModalBtn">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="btn-icon-sm">
+          <div class="proof-actions-deck">
+            <button class="btn-capsule-outline" id="verifyProofModalBtn">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="btn-glyph-sm">
                 <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
               </svg>
               VERIFY PROOF ON-CHAIN
             </button>
-            <a class="btn btn-secondary btn-sm" id="viewManifestJsonBtn" href="#" target="_blank" rel="noopener noreferrer">
+            <a class="btn-capsule-ghost" id="viewManifestJsonBtn" href="#" target="_blank" rel="noopener noreferrer">
               VIEW RAW RFC-8785 JSON
             </a>
           </div>
         </div>
 
-        <!-- Refusal Notice (Appears for REVIEW / REJECTED matches) -->
-        <div class="blockchain-refusal-card" id="blockchainRefusalCard" style="display:none">
-          <div class="refusal-icon">
+        <!-- Blockchain Refusal Card (REVIEW / REJECTED Matches) -->
+        <div class="provenance-panel-card refusal-panel-highlight" id="blockchainRefusalCard" style="display:none">
+          <div class="refusal-emblem-box">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/>
             </svg>
           </div>
-          <div class="refusal-content">
-            <h3 class="refusal-title">BLOCKCHAIN PROOF NOT ANCHORED</h3>
-            <p class="refusal-desc" id="refusalDescText">
+          <div class="refusal-narrative-wrap">
+            <h3 class="refusal-headline">BLOCKCHAIN PROOF NOT ANCHORED</h3>
+            <p class="refusal-body-copy" id="refusalDescText">
               TrustLens strictly enforces zero false-positive proof registration. Because this evidence is classified as [REVIEW / REJECTED], on-chain proof anchoring was safely skipped to prevent immutable ledger pollution.
             </p>
-            <div class="refusal-ipfs-trail">
-              <span>An off-chain IPFS audit record was preserved: </span>
-              <a id="refusalIpfsLink" href="#" target="_blank" rel="noopener noreferrer" class="mono-link">Qm...</a>
+            <div class="refusal-audit-link">
+              <span>Off-chain IPFS audit record: </span>
+              <a id="refusalIpfsLink" href="#" target="_blank" rel="noopener noreferrer" class="ps-link">Qm...</a>
             </div>
           </div>
         </div>
+
       </div>
 
-      <!-- Candidate Evaluation Gallery -->
-      <div class="candidates-gallery-section" id="candidatesGallerySection">
-        <div class="gallery-header">
-          <span class="gallery-title">EVALUATED CANDIDATE CORRELATIONS (<span id="galleryCount">0</span>)</span>
-          <span class="gallery-sub">Ranked deterministically by biometric similarity and quality</span>
+      <!-- Candidate Evaluation Strip Gallery -->
+      <div class="gallery-panel-card" id="candidatesGallerySection">
+        <div class="gallery-top-meta">
+          <span class="gallery-title-mono">EVALUATED CANDIDATE CORRELATIONS (<span id="galleryCount">0</span>)</span>
+          <span class="gallery-sub-mono">RANKED DETERMINISTICALLY BY ARCFACE SIMILARITY</span>
         </div>
-        <div class="candidates-scroll-strip" id="candidatesScrollStrip"></div>
+        <div class="candidates-horizontal-strip" id="candidatesScrollStrip"></div>
       </div>
 
       <!-- INTERACTIVE CRYPTOGRAPHIC TAMPER DEMONSTRATION -->
-      <div class="tamper-demo-section" id="tamperDemoSection">
-        <div class="tamper-section-header">
-          <div>
-            <span class="tamper-kicker">CRYPTOGRAPHIC PROVENANCE INTEGRITY</span>
-            <h3 class="tamper-title">Interactive Tamper Detection Demonstration</h3>
-            <p class="tamper-sub">Observe how any unauthorized modification to the verified evidence results in immediate cryptographic mismatch and on-chain verification rejection.</p>
-          </div>
+      <div class="tamper-laboratory-card" id="tamperDemoSection">
+        <div class="tamper-card-header">
+          <span class="tamper-kicker-mono">CRYPTOGRAPHIC PROVENANCE INTEGRITY</span>
+          <h3 class="tamper-headline-text">Interactive Tamper Detection Demonstration</h3>
+          <p class="tamper-explanatory-copy">Observe how any unauthorized modification to the verified evidence results in immediate cryptographic mismatch and on-chain verification rejection.</p>
         </div>
 
-        <div class="tamper-interactive-grid">
-          <!-- Scenario Selector -->
-          <div class="tamper-scenarios-col">
-            <span class="col-subhead">CHOOSE TEST SCENARIO:</span>
-            <div class="tamper-scenario-btn active" data-scenario="original">
-              <div class="scenario-dot dot-valid"></div>
+        <div class="tamper-console-grid">
+          <!-- Scenario Selector Buttons -->
+          <div class="tamper-scenarios-deck">
+            <span class="deck-header-mono">CHOOSE TEST SCENARIO:</span>
+            <div class="scenario-option-card active" data-scenario="original">
+              <div class="scenario-status-dot dot-valid"></div>
               <div>
-                <strong class="scenario-title">1. Original Authentic Manifest</strong>
-                <p class="scenario-desc">Bit-for-bit match with IPFS CID & on-chain hash.</p>
+                <strong class="scenario-name">1. Original Authentic Manifest</strong>
+                <p class="scenario-note">Bit-for-bit match with IPFS CID & on-chain hash.</p>
               </div>
             </div>
-            <div class="tamper-scenario-btn" data-scenario="url">
-              <div class="scenario-dot dot-tamper"></div>
+            <div class="scenario-option-card" data-scenario="url">
+              <div class="scenario-status-dot dot-tamper"></div>
               <div>
-                <strong class="scenario-title">2. Modify Source URL</strong>
-                <p class="scenario-desc">Simulate an attacker pointing proof to malicious host.</p>
+                <strong class="scenario-name">2. Modify Source URL</strong>
+                <p class="scenario-note">Simulate an attacker altering target host URL.</p>
               </div>
             </div>
-            <div class="tamper-scenario-btn" data-scenario="similarity">
-              <div class="scenario-dot dot-tamper"></div>
+            <div class="scenario-option-card" data-scenario="similarity">
+              <div class="scenario-status-dot dot-tamper"></div>
               <div>
-                <strong class="scenario-title">3. Alter Similarity Score</strong>
-                <p class="scenario-desc">Simulate fabricating a higher 0.999 similarity score.</p>
+                <strong class="scenario-name">3. Alter Similarity Score</strong>
+                <p class="scenario-note">Simulate fabricating a higher 0.999 score.</p>
               </div>
             </div>
-            <div class="tamper-scenario-btn" data-scenario="platform">
-              <div class="scenario-dot dot-tamper"></div>
+            <div class="scenario-option-card" data-scenario="platform">
+              <div class="scenario-status-dot dot-tamper"></div>
               <div>
-                <strong class="scenario-title">4. Tamper Platform Metadata</strong>
-                <p class="scenario-desc">Simulate claiming unverified source as official media.</p>
+                <strong class="scenario-name">4. Tamper Platform Metadata</strong>
+                <p class="scenario-note">Simulate claiming unverified source as media.</p>
               </div>
             </div>
           </div>
 
-          <!-- Live Verification Simulator -->
-          <div class="tamper-simulation-col">
-            <div class="simulation-screen" id="tamperSimulationScreen">
-              <div class="sim-header">
-                <span class="sim-pill" id="simStatusPill">STATUS: VALID & VERIFIED</span>
-                <span class="sim-hash-match-pill" id="simMatchPill">HASH MATCH</span>
+          <!-- Live Cryptographic Verification Display -->
+          <div class="tamper-verification-terminal">
+            <div class="terminal-screen-box" id="tamperSimulationScreen">
+              <div class="terminal-top-strip">
+                <span class="terminal-status-chip" id="simStatusPill">STATUS: VALID & VERIFIED</span>
+                <span class="terminal-match-chip" id="simMatchPill">HASH MATCH</span>
               </div>
-              <div class="sim-body">
-                <div class="sim-row">
-                  <span class="sim-key">Original Canonical Hash:</span>
-                  <span class="sim-val mono-hash" id="simOrigHash">c1fee9bc...</span>
+              <div class="terminal-data-stack">
+                <div class="t-row">
+                  <span class="t-key">ORIGINAL CANONICAL HASH:</span>
+                  <span class="t-val t-hash" id="simOrigHash">c1fee9bc...</span>
                 </div>
-                <div class="sim-row">
-                  <span class="sim-key">Computed Modified Hash:</span>
-                  <span class="sim-val mono-hash" id="simComputedHash">c1fee9bc...</span>
+                <div class="t-row">
+                  <span class="t-key">COMPUTED MODIFIED HASH:</span>
+                  <span class="t-val t-hash" id="simComputedHash">c1fee9bc...</span>
                 </div>
-                <div class="sim-row">
-                  <span class="sim-key">On-Chain Registry Proof:</span>
-                  <span class="sim-val" id="simOnChainStatus">CONFIRMED (Block #38)</span>
+                <div class="t-row">
+                  <span class="t-key">ON-CHAIN REGISTRY PROOF:</span>
+                  <span class="t-val" id="simOnChainStatus">CONFIRMED (Block #38 on Anvil)</span>
                 </div>
-                <div class="sim-diff-box" id="simDiffBox">
+                <div class="terminal-diff-viewport" id="simDiffBox">
                   <code>All evidence fields match bit-for-bit with RFC-8785 canonical standard.</code>
                 </div>
               </div>
@@ -407,36 +407,36 @@
 
   </main>
 
-  <!-- ON-CHAIN VERIFICATION MODAL -->
-  <div class="modal-overlay" id="verifyModal" style="display:none">
-    <div class="modal-dialog glass-card">
-      <div class="modal-header">
-        <h3 class="modal-title">Independent On-Chain Proof Verification</h3>
-        <button class="modal-close-btn" id="closeVerifyModalBtn">&times;</button>
+  <!-- INDEPENDENT ON-CHAIN QUERY MODAL -->
+  <div class="modal-backdrop-layer" id="verifyModal" style="display:none">
+    <div class="modal-console-window">
+      <div class="modal-header-strip">
+        <h3 class="modal-window-title">Independent On-Chain Proof Verification</h3>
+        <button class="modal-exit-btn" id="closeVerifyModalBtn">&times;</button>
       </div>
-      <div class="modal-body">
-        <p class="modal-desc">Querying the local Anvil blockchain node / Polygon testnet directly via Web3 JSON-RPC to independently verify evidence registry state.</p>
-        <div class="modal-input-wrap">
-          <label class="modal-label">Evidence SHA-256 Hash:</label>
-          <input type="text" class="modal-input mono-input" id="modalHashInput" placeholder="Enter 64-character SHA-256 hash">
-          <button class="btn btn-primary btn-sm" id="modalVerifyBtn">QUERY ON-CHAIN</button>
+      <div class="modal-content-body">
+        <p class="modal-sub-info">Querying the local Anvil blockchain node / Polygon testnet directly via Web3 JSON-RPC to independently verify evidence registry state.</p>
+        <div class="modal-query-box">
+          <label class="modal-input-label">EVIDENCE SHA-256 HASH:</label>
+          <input type="text" class="modal-text-input" id="modalHashInput" placeholder="Enter 64-character SHA-256 hash">
+          <button class="modal-submit-btn" id="modalVerifyBtn">QUERY ON-CHAIN</button>
         </div>
-        <div class="modal-result-box" id="modalResultBox" style="display:none">
-          <div class="modal-status-badge" id="modalStatusBadge">VERIFICATION CONFIRMED</div>
-          <div class="modal-fields">
-            <div class="m-field"><span class="m-k">Submitter Address:</span> <span class="m-v mono-val" id="mSubmitter">0x...</span></div>
-            <div class="m-field"><span class="m-k">Block Timestamp:</span> <span class="m-v" id="mTimestamp">--</span></div>
-            <div class="m-field"><span class="m-k">IPFS CID:</span> <a class="m-v mono-link" id="mIpfsCid" href="#" target="_blank">Qm...</a></div>
+        <div class="modal-outcome-box" id="modalResultBox" style="display:none">
+          <div class="modal-outcome-chip" id="modalStatusBadge">VERIFICATION CONFIRMED</div>
+          <div class="modal-specs-list">
+            <div class="mo-row"><span class="mo-k">SUBMITTER ADDRESS:</span> <span class="mo-v mo-hash" id="mSubmitter">0x...</span></div>
+            <div class="mo-row"><span class="mo-k">BLOCK TIMESTAMP:</span> <span class="mo-v" id="mTimestamp">--</span></div>
+            <div class="mo-row"><span class="mo-k">IPFS CID:</span> <a class="mo-v mo-link" id="mIpfsCid" href="#" target="_blank">Qm...</a></div>
           </div>
         </div>
       </div>
     </div>
   </div>
 
-  <footer class="app-footer">
-    <div class="footer-content">
-      <span class="footer-left">TRUSTLENS • Hacker House Goa Submission (Task 3)</span>
-      <span class="footer-right">Zero False-Positive Proof Architecture • RFC-8785 Manifests • ArcFace buffalo_l</span>
+  <footer class="app-footer-bar">
+    <div class="footer-layout-wrap">
+      <span class="footer-left-mono">TRUSTLENS • Hacker House Goa Task 3</span>
+      <span class="footer-right-mono">ZERO FALSE-POSITIVE PROOF ARCHITECTURE • RFC-8785 • ARCFACE 512D</span>
     </div>
   </footer>
 

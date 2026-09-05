@@ -105,7 +105,8 @@ document.addEventListener('DOMContentLoaded', () => {
       if (res.ok) {
         const data = await res.json();
         if (data.network) {
-          networkNameLabel.textContent = `${data.network.toUpperCase()} (${data.chain_id})`;
+          const conciseName = data.is_local ? `ANVIL (${data.chain_id})` : `POLYGON (${data.chain_id})`;
+          networkNameLabel.textContent = conciseName;
         }
         if (data.latest_block) {
           headerBlockNum.textContent = `#${data.latest_block}`;
