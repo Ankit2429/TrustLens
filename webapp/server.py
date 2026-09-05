@@ -286,9 +286,16 @@ async def analyze_and_execute_pipeline(
         stages_log[-1]["status"] = "SUCCESS"
         stages_log[-1]["detail"] = f"Separation Margin: {sep_margin if sep_margin is not None else 'N/A'} (Verified: {len(verified_matches)}, Review: {len(review_candidates)}, Rejected: {len(rejected_candidates)})"
 
-        # Select primary match (prioritize verified social platforms if found)
-        social_ver = [x for x in verified_matches if x["platform"] != "General Web"]
-        best_match = social_ver[0] if social_ver else (verified_matches[0] if verified_matches else (evaluated_candidates[0] if evaluated_candidates else None))
+        # Select primary match: Prioritize verified social -> any verified -> review -> rejected
+        if verified_matches:
+            social_ver = [x for x in verified_matches if x["platform"] != "General Web"]
+            best_match = social_ver[0] if social_ver else verified_matches[0]
+        elif review_candidates:
+            best_match = review_candidates[0]
+        elif evaluated_candidates:
+            best_match = evaluated_candidates[0]
+        else:
+            best_match = None
 
         if not best_match:
             raise HTTPException(status_code=404, detail="No faces detected in discovered candidate images")
@@ -311,7 +318,7 @@ async def analyze_and_execute_pipeline(
             decision=best_match["decision"],
             verified_threshold=verified_threshold,
             review_threshold=review_threshold,
-            decision_reason=f"Multi-source facial verification against {best_match['platform']}",
+            decision_reason=f"Multi-source facial verification ({best_match['decision']}) against {best_match['platform']}",
             query_image_cid=query_cid,
             total_candidates=len(candidates),
             usable_images_count=usable_count,
@@ -336,9 +343,10 @@ async def analyze_and_execute_pipeline(
         stages_log[-1]["status"] = "SUCCESS"
         stages_log[-1]["detail"] = f"Pinned Manifest CID: {manifest_cid} [{timings['8_ipfs_manifest']:.2f}s]"
 
-        # [9/9] Polygon Amoy Proof Anchoring
+        # [9/9] Blockchain Proof Anchoring
+        cfg = get_blockchain_config()
         t0 = time.perf_counter()
-        stages_log.append({"stage": 9, "name": "Polygon Amoy Proof Anchoring", "status": "RUNNING"})
+        stages_log.append({"stage": 9, "name": f"{cfg['network_label']} Proof Anchoring", "status": "RUNNING"})
         chain_receipt = None
         if not skip_blockchain:
             chain_receipt = register_proof(manifest_hash, manifest_cid)

@@ -18,16 +18,30 @@ from pipeline.ipfs_store import fetch_json
 load_dotenv()
 
 
-def verify(data_hash_hex: str) -> bool:
+import json
+import os
+
+def verify(data_input: str) -> bool:
     """Perform independent blockchain and IPFS cryptographic re-verification.
 
     Args:
-        data_hash_hex: 64-character SHA-256 hex string.
+        data_input: 64-character SHA-256 hex string or path to an evidence manifest JSON.
 
     Returns:
         True if the recomputed hash matches the blockchain hash, False otherwise.
     """
-    clean_hash = data_hash_hex.strip()
+    clean_hash = data_input.strip()
+    target_path = os.path.abspath(clean_hash) if not os.path.isabs(clean_hash) else clean_hash
+    if os.path.isfile(target_path):
+        try:
+            with open(target_path, "r", encoding="utf-8") as f:
+                content = json.load(f)
+                clean_hash = sha256_of_json(content)
+                print(f"[+] Loaded manifest from '{data_input}' -> Canonical SHA256: {clean_hash}")
+        except Exception as e:
+            print(f"[-] Could not parse JSON file '{data_input}': {e}")
+            return False
+
     if clean_hash.startswith("0x"):
         clean_hash = clean_hash[2:]
 
