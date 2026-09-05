@@ -1,6 +1,6 @@
 # TrustLens — Face Identification & Blockchain Verification
 
-[![Tests](https://img.shields.io/badge/pytest-37%20passed-brightgreen.svg)](tests/)
+[![Tests](https://img.shields.io/badge/pytest-44%20passed-brightgreen.svg)](tests/)
 [![Blockchain](https://img.shields.io/badge/Blockchain-Anvil%20%7C%20Polygon%20Amoy-blueviolet.svg)](https://book.getfoundry.sh/anvil/)
 [![Local EVM](https://img.shields.io/badge/Local%20Node-Anvil%20(31337)-3B82F6.svg)](http://127.0.0.1:8545)
 [![Public Testnet](https://img.shields.io/badge/Polygon-Amoy%20(80002)-8247E5.svg)](https://amoy.polygonscan.com/)
@@ -20,7 +20,7 @@ In an era of digital media proliferation, establishing verifiable cryptographic 
 4. **Candidate Ranking & Separation Margin**: Ranks candidates deterministically and calculates the separation margin gap between the best verified match and the strongest rejected candidate.
 5. **Multi-Tier Decision Engine**: Categorizes matches using configurable empirical thresholds (`VERIFIED`, `REVIEW`, `REJECTED`) with explicit decision reason codes.
 6. **Canonical Evidence Manifest (RFC-8785)**: Generates a deterministic JSON evidence manifest capturing complete provenance, quality scores, and separation metrics.
-7. **Decentralized Storage & On-Chain Anchoring**: Pins the manifest to IPFS via Pinata and anchors the cryptographic SHA-256 hash to a **local Anvil blockchain** (`Chain ID: 31337`) or **Polygon Amoy Testnet** (`Chain ID: 80002`) via `ProofRegistry.sol`.
+7. **Strictly-Gated Blockchain Proof Anchoring**: Pins the manifest to IPFS via Pinata and anchors the cryptographic SHA-256 hash to a **local Anvil blockchain** (`Chain ID: 31337`) or **Polygon Amoy Testnet** (`Chain ID: 80002`) via `ProofRegistry.sol` **strictly when evidence reaches the high-confidence `VERIFIED` state** (refusing to anchor unverified, review, or rejected candidates).
 8. **Independent Re-Verification & Tamper Detection**: Provides standalone public verification (`verify.py`) and multi-scenario cryptographic tamper detection (`tamper_demo.py`).
 
 ---
