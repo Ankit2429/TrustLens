@@ -10,6 +10,14 @@ import sys
 import time
 from typing import Any, Optional
 
+try:
+    if hasattr(sys.stdout, "reconfigure"):
+        sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+    if hasattr(sys.stderr, "reconfigure"):
+        sys.stderr.reconfigure(encoding="utf-8", errors="replace")
+except Exception:
+    pass
+
 import requests
 from requests.adapters import HTTPAdapter
 from dotenv import load_dotenv
@@ -39,10 +47,11 @@ load_dotenv()
 # Note: Cosine similarity thresholds are empirical heuristics calibrated on standard ArcFace distributions.
 # - VERIFIED (>= 0.45): High-confidence biometric similarity confirming candidate match against query face.
 # - REVIEW (0.38 - 0.45): Borderline / ambiguous candidate or degraded quality requiring manual inspection.
-# - REJECTED (< 0.38): Unrelated candidate clearly below the biometric decision boundary.
-# Similarity alone is a heuristic indicator and does not constitute absolute proof of legal identity.
-DEFAULT_VERIFIED_THRESHOLD = float(os.environ.get("VERIFIED_THRESHOLD", "0.45"))
-DEFAULT_REVIEW_THRESHOLD = float(os.environ.get("REVIEW_THRESHOLD", "0.35"))
+# - VERIFIED (>= 0.60): High-confidence genuine identity match across diverse real-world conditions.
+# - REVIEW (0.40 - 0.60): Borderline / manual review required (adverse lighting, heavy compression, avatar).
+# - REJECTED (< 0.40): Unrelated candidate clearly below the biometric decision boundary.
+DEFAULT_VERIFIED_THRESHOLD = float(os.environ.get("VERIFIED_THRESHOLD", "0.60"))
+DEFAULT_REVIEW_THRESHOLD = float(os.environ.get("REVIEW_THRESHOLD", "0.40"))
 DEFAULT_MIN_QUALITY = float(os.environ.get("MIN_QUALITY_THRESHOLD", "0.20"))
 DEFAULT_MAX_CANDIDATES = int(os.environ.get("MAX_CANDIDATES", "40"))
 
@@ -506,6 +515,9 @@ def run_pipeline(
         "manifest_cid": manifest_cid,
         "blockchain_receipt": chain_receipt,
         "best_match": best_result,
+        "query_analysis": query_analysis,
+        "manifest": manifest,
+        "all_candidates_ranked": verified_results,
         "verified_matches": verified_matches,
         "review_matches": review_matches,
         "rejected_matches": rejected_matches,
