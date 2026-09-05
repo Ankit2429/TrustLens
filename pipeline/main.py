@@ -447,10 +447,10 @@ def run_pipeline(
         sys.exit(1)
 
     # ---------------------------------------------------------
-    # [9/9] Blockchain Proof Anchoring
+    # [9/9] Blockchain Proof Anchoring (Strict VERIFIED Gate)
     # ---------------------------------------------------------
     chain_receipt = None
-    if not skip_blockchain:
+    if not skip_blockchain and decision == "VERIFIED":
         print("\n[9/9] Anchoring proof to Blockchain (ProofRegistry.sol)...")
         t0 = time.perf_counter()
         try:
@@ -473,6 +473,8 @@ def run_pipeline(
         print(f"      -> On-Chain Submitter   : {onchain['submitter']}")
         print(f"      -> On-Chain IPFS CID    : {onchain['ipfs_cid']}")
         print(f"      -> On-Chain Timestamp   : {onchain['timestamp']}")
+    elif decision != "VERIFIED":
+        print(f"\n[9/9] Skipping blockchain proof registration: Decision is [{decision}] (Proof registration strictly requires [VERIFIED] evidence).")
     else:
         print("\n[9/9] Skipping blockchain proof registration (--skip-blockchain specified).")
 

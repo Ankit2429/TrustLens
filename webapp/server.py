@@ -343,16 +343,19 @@ async def analyze_and_execute_pipeline(
         stages_log[-1]["status"] = "SUCCESS"
         stages_log[-1]["detail"] = f"Pinned Manifest CID: {manifest_cid} [{timings['8_ipfs_manifest']:.2f}s]"
 
-        # [9/9] Blockchain Proof Anchoring
+        # [9/9] Blockchain Proof Anchoring (Strict VERIFIED Gate)
         cfg = get_blockchain_config()
         t0 = time.perf_counter()
         stages_log.append({"stage": 9, "name": f"{cfg['network_label']} Proof Anchoring", "status": "RUNNING"})
         chain_receipt = None
-        if not skip_blockchain:
+        if not skip_blockchain and best_match["decision"] == "VERIFIED":
             chain_receipt = register_proof(manifest_hash, manifest_cid)
             timings["9_blockchain"] = time.perf_counter() - t0
             stages_log[-1]["status"] = "SUCCESS"
             stages_log[-1]["detail"] = f"Tx Hash: {chain_receipt['tx_hash'][:16]}... (Block #{chain_receipt['block']}) [{timings['9_blockchain']:.2f}s]"
+        elif best_match["decision"] != "VERIFIED":
+            stages_log[-1]["status"] = "SKIPPED"
+            stages_log[-1]["detail"] = f"Proof registration skipped: Decision is [{best_match['decision']}] (only VERIFIED proofs are anchored on-chain)"
         else:
             stages_log[-1]["status"] = "SKIPPED"
             stages_log[-1]["detail"] = "Offline mode requested (dry run)"
