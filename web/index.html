@@ -373,15 +373,18 @@
             <span class="dcl-item"><span class="dcl-badge dcl-same">SAME IMAGE</span> SHA Match Only</span>
           </div>
 
-          <!-- Actual Runtime Counters Bar (Requirement 10) -->
+          <!-- Actual Runtime Counters Bar (Requirement 12) -->
           <div class="discovery-counts-bar" id="discoveryCountsBar">
-            <div class="dcb-item"><span class="dcb-label">DISCOVERED RESULTS</span><span class="dcb-val" id="dcbRawResults">0</span></div>
+            <div class="dcb-item dcb-mode-vis"><span class="dcb-label">VISUAL MATCHES</span><span class="dcb-val" id="dcbVisualMatches">0</span></div>
+            <div class="dcb-item dcb-mode-exact"><span class="dcb-label">EXACT MATCHES</span><span class="dcb-val" id="dcbExactMatches">0</span></div>
+            <div class="dcb-item dcb-mode-about"><span class="dcb-label">ABOUT THIS IMAGE</span><span class="dcb-val" id="dcbAboutMatches">0</span></div>
+            <div class="dcb-item"><span class="dcb-label">TOTAL UNIQUE SOURCES</span><span class="dcb-val" id="dcbUniqueSources">0</span></div>
+            <div class="dcb-item"><span class="dcb-label">TOTAL CANDIDATE IMAGES</span><span class="dcb-val" id="dcbCandidateImages">0</span></div>
             <div class="dcb-item"><span class="dcb-label">USABLE IMAGES</span><span class="dcb-val" id="dcbImagesAnalyzed">0</span></div>
             <div class="dcb-item"><span class="dcb-label">FACES ANALYZED</span><span class="dcb-val" id="dcbFacesAnalyzed">0</span></div>
             <div class="dcb-item dcb-verif"><span class="dcb-label">VERIFIED MATCHES</span><span class="dcb-val" id="dcbVerifiedCount">0</span></div>
             <div class="dcb-item dcb-rev"><span class="dcb-label">REVIEW CANDIDATES</span><span class="dcb-val" id="dcbReviewCount">0</span></div>
             <div class="dcb-item dcb-rej"><span class="dcb-label">REJECTED CANDIDATES</span><span class="dcb-val" id="dcbRejectedCount">0</span></div>
-            <div class="dcb-item"><span class="dcb-label">SUPPORTING SOURCES</span><span class="dcb-val" id="dcbSupportingSources">0</span></div>
           </div>
 
           <div class="candidates-cards-grid" id="allDiscoveredGrid"></div>

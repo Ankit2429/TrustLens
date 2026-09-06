@@ -243,7 +243,10 @@ async def analyze_and_execute_pipeline(
             }
         timings["4_search_api"] = time.perf_counter() - t0
         stages_log[-1]["status"] = "SUCCESS"
-        stages_log[-1]["detail"] = f"Discovered {len(candidates)} unique candidates across {search_telemetry.get('pages_scanned', 1)} page(s) [{timings['4_search_api']:.2f}s]"
+        exact_c = search_telemetry.get("exact_matches_count", 0)
+        visual_c = search_telemetry.get("visual_matches_count", 0)
+        about_c = search_telemetry.get("about_image_count", 0)
+        stages_log[-1]["detail"] = f"Discovered {len(candidates)} unique candidates across {search_telemetry.get('pages_scanned', 1)} page(s) [Exact: {exact_c}, Visual: {visual_c}, About: {about_c}] [{timings['4_search_api']:.2f}s]"
 
         # [5/9] Candidate Multi-Face Verification (Concurrent In-Memory)
         t0 = time.perf_counter()
@@ -461,12 +464,21 @@ async def analyze_and_execute_pipeline(
             "relationship_graph": relationship_graph,
             "search_summary": {
                 "pages_scanned": search_telemetry.get("pages_scanned", 1),
+                "visual_matches_pages": search_telemetry.get("visual_matches_pages", 0),
+                "exact_matches_pages": search_telemetry.get("exact_matches_pages", 0),
+                "about_this_image_pages": search_telemetry.get("about_this_image_pages", 0),
                 "total_discovered": search_telemetry.get("total_discovered", len(candidates)),
                 "unique_candidates": len(candidates),
+                "candidate_images_count": len([c for c in candidates if c.get("thumbnail")]),
                 "usable_evaluated": usable_count,
                 "faces_evaluated": total_faces_evaluated,
                 "platforms_discovered": search_telemetry.get("platforms_discovered", []),
                 "source_expansions": search_telemetry.get("source_expansions", 0),
+                "exact_matches_count": search_telemetry.get("exact_matches_count", 0),
+                "visual_matches_count": search_telemetry.get("visual_matches_count", 0),
+                "about_image_count": search_telemetry.get("about_image_count", 0),
+                "search_modes_active": search_telemetry.get("search_modes_active", []),
+                "search_modes_queried": search_telemetry.get("search_modes_queried", ["visual_matches", "exact_matches", "about_this_image"]),
                 "verified_count": len(verified_matches),
                 "review_count": len(review_candidates),
                 "rejected_count": len(rejected_candidates),

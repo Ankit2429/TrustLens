@@ -831,22 +831,28 @@ document.addEventListener('DOMContentLoaded', () => {
     const reviewCands = allCands.filter(c => c.decision === 'REVIEW');
     const rejectedCands = allCands.filter(c => c.decision === 'REJECTED');
 
-    // Truthful Runtime Counters Bar (Requirement 10)
-    const dcbRawResults = document.getElementById('dcbRawResults');
+    // Truthful Runtime Counters Bar (Requirement 12)
+    const dcbVisualMatches = document.getElementById('dcbVisualMatches');
+    const dcbExactMatches = document.getElementById('dcbExactMatches');
+    const dcbAboutMatches = document.getElementById('dcbAboutMatches');
+    const dcbUniqueSources = document.getElementById('dcbUniqueSources');
+    const dcbCandidateImages = document.getElementById('dcbCandidateImages');
     const dcbImagesAnalyzed = document.getElementById('dcbImagesAnalyzed');
     const dcbFacesAnalyzed = document.getElementById('dcbFacesAnalyzed');
     const dcbVerifiedCount = document.getElementById('dcbVerifiedCount');
     const dcbReviewCount = document.getElementById('dcbReviewCount');
     const dcbRejectedCount = document.getElementById('dcbRejectedCount');
-    const dcbSupportingSources = document.getElementById('dcbSupportingSources');
 
-    if (dcbRawResults) dcbRawResults.textContent = summary.total_discovered !== undefined ? summary.total_discovered : allCands.length;
+    if (dcbVisualMatches) dcbVisualMatches.textContent = summary.visual_matches_count !== undefined ? summary.visual_matches_count : 0;
+    if (dcbExactMatches) dcbExactMatches.textContent = summary.exact_matches_count !== undefined ? summary.exact_matches_count : 0;
+    if (dcbAboutMatches) dcbAboutMatches.textContent = summary.about_image_count !== undefined ? summary.about_image_count : 0;
+    if (dcbUniqueSources) dcbUniqueSources.textContent = summary.unique_candidates !== undefined ? summary.unique_candidates : allCands.length;
+    if (dcbCandidateImages) dcbCandidateImages.textContent = summary.candidate_images_count !== undefined ? summary.candidate_images_count : allCands.filter(c => c.thumbnail).length;
     if (dcbImagesAnalyzed) dcbImagesAnalyzed.textContent = summary.usable_evaluated !== undefined ? summary.usable_evaluated : allCands.length;
     if (dcbFacesAnalyzed) dcbFacesAnalyzed.textContent = summary.faces_evaluated !== undefined ? summary.faces_evaluated : facesAnalyzed;
     if (dcbVerifiedCount) dcbVerifiedCount.textContent = summary.verified_count !== undefined ? summary.verified_count : verifiedCands.length;
     if (dcbReviewCount) dcbReviewCount.textContent = summary.review_count !== undefined ? summary.review_count : reviewCands.length;
     if (dcbRejectedCount) dcbRejectedCount.textContent = summary.rejected_count !== undefined ? summary.rejected_count : rejectedCands.length;
-    if (dcbSupportingSources) dcbSupportingSources.textContent = data.consensus_data ? (data.consensus_data.total_supporting || 0) : verifiedCands.length;
 
     // Helper to generate a candidate card
     function buildCandidateCard(c, isStrongest = false) {
@@ -855,7 +861,20 @@ document.addEventListener('DOMContentLoaded', () => {
       const tagClass = c.decision === 'VERIFIED' ? 'tag-verif' : c.decision === 'REVIEW' ? 'tag-rev' : 'tag-rej';
       const realUrl = c.link || '#';
       const displayUrl = realUrl.length > 50 ? `${realUrl.slice(0, 48)}...` : realUrl;
-      const searchCat = c.search_category || 'visual_matches';
+      
+      const rawCat = (c.search_category || 'visual_matches').toLowerCase();
+      let modeBadgeText = 'VISUAL MATCH';
+      let modeBadgeClass = 'cand-cat-badge-vis';
+      if (rawCat === 'exact_matches') {
+        modeBadgeText = 'EXACT MATCH';
+        modeBadgeClass = 'cand-cat-badge-exact';
+      } else if (rawCat === 'about_this_image') {
+        modeBadgeText = 'ABOUT THIS IMAGE';
+        modeBadgeClass = 'cand-cat-badge-about';
+      } else if (rawCat === 'source_page_expansion') {
+        modeBadgeText = 'SOURCE IMAGE';
+        modeBadgeClass = 'cand-cat-badge-vis';
+      }
 
       let groupFacesHtml = '';
       if (c.face_count > 1 && c.candidate_faces_evaluated && c.candidate_faces_evaluated.length > 0) {
@@ -883,7 +902,7 @@ document.addEventListener('DOMContentLoaded', () => {
           <div class="cand-score-row">
             <span class="cand-score">${Number(c.similarity).toFixed(3)}</span>
             <span class="cand-tag ${tagClass}">${c.decision}</span>
-            <span class="cand-cat-badge">${escapeHtml(searchCat)}</span>
+            <span class="cand-cat-badge ${modeBadgeClass}">${escapeHtml(modeBadgeText)}</span>
             <span class="cand-platform-tag">${escapeHtml(c.platform || c.domain || 'WEB')}</span>
           </div>
           <div class="cand-title" title="${escapeHtml(c.title || c.domain || 'Discovered Source')}">

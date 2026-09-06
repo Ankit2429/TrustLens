@@ -235,3 +235,168 @@ def test_evidence_manifest_with_group_and_telemetry():
         discovery_timestamp=manifest["record_timestamp"],
     )
     assert manifest_hash == hash2
+
+
+# =====================================================================
+# 3. Separate Google Lens Search Modes & Multi-Source Deduplication
+# =====================================================================
+
+@patch("pipeline.search.requests.Session")
+def test_separate_google_lens_modes_discovery(mock_session_cls):
+    """Verify separate requests for visual_matches, exact_matches, and about_this_image are merged."""
+    mock_session = MagicMock()
+    mock_session_cls.return_value = mock_session
+
+    visual_json = {
+        "visual_matches": [
+            {
+                "link": "https://instagram.com/p/visual1",
+                "title": "Visual Match 1",
+                "thumbnail": "https://img.com/v1.jpg",
+                "image": "https://img.com/v1_full.jpg",
+                "source": "Instagram",
+                "position": 1,
+            }
+        ],
+        "serpapi_pagination": {},
+        "search_metadata": {"id": "req_vis_123"},
+    }
+
+    exact_json = {
+        "exact_matches": [
+            {
+                "link": "https://ebay.com/itm/exact1",
+                "title": "Exact Match 1",
+                "thumbnail": "https://img.com/e1.jpg",
+                "source": "eBay",
+                "position": 1,
+            }
+        ],
+        "serpapi_pagination": {},
+        "search_metadata": {"id": "req_exact_456"},
+    }
+
+    about_json = {
+        "about_this_image": {
+            "sections": [
+                {
+                    "page_results": [
+                        {
+                            "link": "https://reuters.com/article/about1",
+                            "title": "Reuters About Image",
+                            "thumbnail": "https://img.com/a1.jpg",
+                            "source": "Reuters",
+                            "snippet": "Jan 2024 - News coverage",
+                        }
+                    ]
+                }
+            ]
+        },
+        "serpapi_pagination": {},
+        "search_metadata": {"id": "req_about_789"},
+    }
+
+    resp_vis = MagicMock(status_code=200)
+    resp_vis.json.return_value = visual_json
+
+    resp_exact = MagicMock(status_code=200)
+    resp_exact.json.return_value = exact_json
+
+    resp_about = MagicMock(status_code=200)
+    resp_about.json.return_value = about_json
+
+    # Sequential mock side_effects for the 3 modes: visual_matches, exact_matches, about_this_image
+    mock_session.get.side_effect = [resp_vis, resp_exact, resp_about]
+
+    with patch.dict(os.environ, {"SERPAPI_KEY": "test_serp_key"}):
+        candidates, telemetry = reverse_image_search(
+            "https://ipfs.io/ipfs/QmMultiModeImage",
+            return_telemetry=True,
+            max_pages=2,
+            max_expansions=0,
+        )
+
+    assert len(candidates) == 3
+    assert telemetry["pages_scanned"] == 3
+    assert telemetry["visual_matches_pages"] == 1
+    assert telemetry["exact_matches_pages"] == 1
+    assert telemetry["about_this_image_pages"] == 1
+    assert telemetry["exact_matches_count"] == 1
+    assert telemetry["visual_matches_count"] == 1
+    assert telemetry["about_image_count"] == 1
+    assert set(telemetry["search_modes_active"]) == {"exact_matches", "visual_matches", "about_this_image"}
+
+    # Modes are correctly attached
+    modes_in_candidates = {c["search_mode"] for c in candidates}
+    assert "exact_matches" in modes_in_candidates
+    assert "visual_matches" in modes_in_candidates
+    assert "about_this_image" in modes_in_candidates
+
+
+@patch("pipeline.search.requests.Session")
+def test_deduplication_retains_different_source_urls_with_same_image(mock_session_cls):
+    """Same underlying image on different platforms/URLs must retain both sources for corroboration."""
+    mock_session = MagicMock()
+    mock_session_cls.return_value = mock_session
+
+    same_thumb = "https://img.com/shared_face.jpg"
+
+    exact_json = {
+        "exact_matches": [
+            {
+                "link": "https://instagram.com/p/photo123/",
+                "title": "Instagram Post",
+                "thumbnail": same_thumb,
+                "source": "Instagram",
+            }
+        ],
+        "serpapi_pagination": {},
+    }
+
+    visual_json = {
+        "visual_matches": [
+            {
+                "link": "https://nytimes.com/article/press-release",
+                "title": "NYT Article",
+                "thumbnail": same_thumb,
+                "source": "The New York Times",
+            },
+            # Duplicate of the first URL (with protocol / trailing slash variation)
+            {
+                "link": "http://www.instagram.com/p/photo123",
+                "title": "Instagram Duplicate",
+                "thumbnail": same_thumb,
+                "source": "Instagram",
+            }
+        ],
+        "serpapi_pagination": {},
+    }
+
+    about_json = {"about_this_image": {}, "serpapi_pagination": {}}
+
+    resp_vis = MagicMock(status_code=200)
+    resp_vis.json.return_value = visual_json
+
+    resp_exact = MagicMock(status_code=200)
+    resp_exact.json.return_value = exact_json
+
+    resp_about = MagicMock(status_code=200)
+    resp_about.json.return_value = about_json
+
+    # Sequential calls: visual_matches, exact_matches, about_this_image
+    mock_session.get.side_effect = [resp_vis, resp_exact, resp_about]
+
+    with patch.dict(os.environ, {"SERPAPI_KEY": "test_serp_key"}):
+        candidates, telemetry = reverse_image_search(
+            "https://ipfs.io/ipfs/QmSharedImage",
+            return_telemetry=True,
+            max_pages=1,
+            max_expansions=0,
+        )
+
+    # 1 from Instagram, 1 from NYT = 2 distinct corroborating sources (duplicate Instagram collapsed)
+    assert len(candidates) == 2
+    domains = {c["domain"] for c in candidates}
+    assert "instagram.com" in domains
+    assert "nytimes.com" in domains
+
