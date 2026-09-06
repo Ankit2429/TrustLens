@@ -1888,7 +1888,274 @@ body.app-body {
   font-family: var(--font-mono);
   font-size: 9px;
   letter-spacing: 0.15em;
+/* ==========================================================================
+   Precision Facial Geometry Toolbar & EXIF Metadata Badge
+   ========================================================================== */
+.photo-controls-toolbar {
+  width: 100%;
+  max-width: 620px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.view-mode-toggle {
+  display: inline-flex;
+  align-items: center;
+  background: var(--surface-1);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-full);
+  padding: 3px;
+  gap: 2px;
+}
+
+.view-mode-btn {
+  border: none;
+  background: transparent;
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  padding: 5px 12px;
+  border-radius: var(--radius-full);
+  cursor: pointer;
+  transition: all 0.18s ease;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.view-mode-btn:hover {
+  color: var(--text-secondary);
+}
+
+.view-mode-btn.active {
+  background: var(--surface-3);
+  color: var(--text-primary);
+  border: 1px solid var(--border-medium);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.6);
+}
+
+.view-mode-btn .vm-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--text-dim);
+  transition: background-color 0.18s ease;
+}
+
+.view-mode-btn.active .vm-dot {
+  background: var(--accent-verified);
+  box-shadow: 0 0 8px var(--accent-verified);
+}
+
+.view-mode-btn .vm-icon {
+  font-size: 10px;
+  color: #38bdf8;
+}
+
+.photo-meta-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-family: var(--font-mono);
+  font-size: 9px;
+  letter-spacing: 0.12em;
+  color: var(--text-muted);
+  background: var(--surface-1);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-full);
+  padding: 5px 12px;
+}
+
+.photo-meta-badge .meta-dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--text-dim);
+}
+
+.photo-meta-badge.has-exif .meta-dot {
+  background: #38bdf8;
+  box-shadow: 0 0 6px rgba(56, 189, 248, 0.6);
+}
+
+.photo-meta-badge.has-exif {
+  color: var(--text-secondary);
+  border-color: rgba(56, 189, 248, 0.25);
+}
+
+/* ==========================================================================
+   Discovery Stream Multi-Mode Breakdown & Sub-Stats
+   ========================================================================== */
+.hud-modes-breakdown {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 6px;
+}
+
+.hud-mode-pill {
+  background: var(--surface-2);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  padding: 6px 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.hud-mode-name {
+  font-family: var(--font-mono);
+  font-size: 8px;
+  letter-spacing: 0.1em;
+  color: var(--text-muted);
+  text-transform: uppercase;
+}
+
+.hud-mode-count {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.hud-sub-stats {
+  display: flex;
+  justify-content: space-between;
+  gap: 6px;
+  padding: 6px 10px;
+  background: var(--surface-2);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  font-family: var(--font-mono);
+  font-size: 9px;
+  letter-spacing: 0.1em;
+  color: var(--text-muted);
+}
+
+.hsi-key {
+  color: var(--text-muted);
+}
+
+.hsi-val {
+  color: var(--text-primary);
+  font-weight: 600;
+  margin-left: 3px;
+}
+
+/* ==========================================================================
+   Source Relationship Graph & Consensus Matrix
+   ========================================================================== */
+.source-graph-section {
+  background: var(--surface-1);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  padding: 18px;
+  margin-bottom: 24px;
+}
+
+.source-graph-matrix {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 10px;
+  margin-top: 14px;
+}
+
+.sg-node-card {
+  background: var(--surface-2);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  transition: all 0.15s ease;
+}
+
+.sg-node-card:hover {
+  border-color: var(--border-medium);
+  background: var(--surface-3);
+}
+
+.sg-node-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+}
+
+.sg-rel-tag {
+  font-family: var(--font-mono);
+  font-size: 8px;
+  letter-spacing: 0.12em;
+  padding: 2px 6px;
+  border-radius: var(--radius-full);
+  font-weight: 600;
+  text-transform: uppercase;
+}
+
+.sg-rel-tag.same-image {
+  color: #38bdf8;
+  background: rgba(56, 189, 248, 0.1);
+  border: 1px solid rgba(56, 189, 248, 0.3);
+}
+
+.sg-rel-tag.same-person {
+  color: var(--accent-verified);
+  background: var(--accent-verified-bg);
+  border: 1px solid var(--accent-verified-border);
+}
+
+.sg-rel-tag.visually-related {
+  color: var(--accent-review);
+  background: var(--accent-review-bg);
+  border: 1px solid var(--accent-review-border);
+}
+
+.sg-rel-tag.different-person {
+  color: var(--text-muted);
+  background: var(--surface-3);
+  border: 1px solid var(--border-subtle);
+}
+
+.sg-node-face {
+  font-family: var(--font-mono);
+  font-size: 8px;
   color: var(--text-dim);
+}
+
+.sg-node-title {
+  font-family: var(--font-ui);
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  text-decoration: none;
+}
+
+.sg-node-title:hover {
+  color: #FFFFFF;
+}
+
+.sg-node-meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-family: var(--font-mono);
+  font-size: 9px;
+  color: var(--text-muted);
+}
+
+.sg-sim-score {
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+
+.sg-sim-score.high {
+  color: var(--accent-verified);
 }
 
 /* Responsive Media Queries */

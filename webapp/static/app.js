@@ -31,9 +31,19 @@ document.addEventListener('DOMContentLoaded', () => {
   const faConfidence = document.getElementById('faConfidence');
   const faFaceSize = document.getElementById('faFaceSize');
   const faPose = document.getElementById('faPose');
+  const faDenseMesh = document.getElementById('faDenseMesh');
+  const faConsistency = document.getElementById('faConsistency');
+  const faExifStatus = document.getElementById('faExifStatus');
   const faSharpness = document.getElementById('faSharpness');
   const faExposure = document.getElementById('faExposure');
   const faEmbeddingHash = document.getElementById('faEmbeddingHash');
+
+  // View Mode & EXIF Toolbar Elements
+  const viewModeNormalBtn = document.getElementById('viewModeNormalBtn');
+  const viewModeGeometryBtn = document.getElementById('viewModeGeometryBtn');
+  const photoMetaBadge = document.getElementById('photoMetaBadge');
+  const metaStatusLabel = document.getElementById('metaStatusLabel');
+  const metaDimLabel = document.getElementById('metaDimLabel');
 
   // Telemetry & Header
   const networkNameLabel = document.getElementById('networkNameLabel');
@@ -45,7 +55,19 @@ document.addEventListener('DOMContentLoaded', () => {
   const streamCurrentStageTitle = document.getElementById('streamCurrentStageTitle');
   const liveDiscoveryHud = document.getElementById('liveDiscoveryHud');
   const hudDiscoveredCount = document.getElementById('hudDiscoveredCount');
+  const hudExactCount = document.getElementById('hudExactCount');
+  const hudVisualCount = document.getElementById('hudVisualCount');
+  const hudAboutCount = document.getElementById('hudAboutCount');
+  const hudPagesCount = document.getElementById('hudPagesCount');
+  const hudUniqueSourcesCount = document.getElementById('hudUniqueSourcesCount');
+  const hudFacesCount = document.getElementById('hudFacesCount');
   const discoveredPlatformsStrip = document.getElementById('discoveredPlatformsStrip');
+
+  // Source Relationship Graph & Consensus Elements
+  const sourceGraphSection = document.getElementById('sourceGraphSection');
+  const sgNodeCount = document.getElementById('sgNodeCount');
+  const sgConsensusSummary = document.getElementById('sgConsensusSummary');
+  const sourceGraphMatrix = document.getElementById('sourceGraphMatrix');
 
   // Top Match & Result Showcase Elements
   const resultShowcaseSection = document.getElementById('resultShowcaseSection');
@@ -112,6 +134,25 @@ document.addEventListener('DOMContentLoaded', () => {
   let selectedFaceIndex = 0;
   let rawImageObj = null;
   let lastAnalysisResult = null;
+  let currentViewMode = 'normal'; // 'normal' | 'geometry'
+
+  // View Mode Listeners
+  if (viewModeNormalBtn) {
+    viewModeNormalBtn.addEventListener('click', () => {
+      currentViewMode = 'normal';
+      viewModeNormalBtn.classList.add('active');
+      if (viewModeGeometryBtn) viewModeGeometryBtn.classList.remove('active');
+      renderFacePreview();
+    });
+  }
+  if (viewModeGeometryBtn) {
+    viewModeGeometryBtn.addEventListener('click', () => {
+      currentViewMode = 'geometry';
+      viewModeGeometryBtn.classList.add('active');
+      if (viewModeNormalBtn) viewModeNormalBtn.classList.remove('active');
+      renderFacePreview();
+    });
+  }
 
   // 1. Initial Health & Network Check
   async function checkHealth() {
@@ -244,8 +285,21 @@ document.addEventListener('DOMContentLoaded', () => {
     faQuality.textContent = (q.overall_quality || 0.90).toFixed(2);
     faConfidence.textContent = (face.det_score || 0.92).toFixed(2);
     faFaceSize.textContent = `${width} × ${height} px`;
+
+    if (face.dense_geometry && face.dense_geometry.pose_3d) {
+      const p3d = face.dense_geometry.pose_3d;
+      faPose.textContent = `P: ${p3d.pitch >= 0 ? '+' : ''}${p3d.pitch.toFixed(1)}° Y: ${p3d.yaw >= 0 ? '+' : ''}${p3d.yaw.toFixed(1)}° R: ${p3d.roll >= 0 ? '+' : ''}${p3d.roll.toFixed(1)}°`;
+      if (faDenseMesh) faDenseMesh.textContent = `${face.dense_geometry.point_count_2d || 106}-PT ACTIVE`;
+      const iod = face.dense_geometry.metrics?.iod;
+      if (faConsistency) faConsistency.textContent = iod ? `${Math.round(iod)}px (${face.dense_geometry.landmark_consistency || 'HIGH'})` : 'HIGH';
+    } else {
+      const breakdown = q.breakdown || {};
+      faPose.textContent = `Y: ${(breakdown.pose_yaw_est || 0).toFixed(1)}° P: ${(breakdown.pose_pitch_est || 0).toFixed(1)}°`;
+      if (faDenseMesh) faDenseMesh.textContent = 'STANDARD 5-PT';
+      if (faConsistency) faConsistency.textContent = 'HIGH';
+    }
+
     const breakdown = q.breakdown || {};
-    faPose.textContent = `Y: ${(breakdown.pose_yaw_est || 0).toFixed(1)}° P: ${(breakdown.pose_pitch_est || 0).toFixed(1)}°`;
     faSharpness.textContent = (breakdown.sharpness || q.sharpness || 0.88).toFixed(2);
     faExposure.textContent = (breakdown.exposure || q.exposure || 0.91).toFixed(2);
     faEmbeddingHash.textContent = '512-D ARCFACE L2';
@@ -279,6 +333,71 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }
 
+  function drawDenseFaceMesh(ctx, landmarks2d, isSelected) {
+    if (!landmarks2d || landmarks2d.length === 0) return;
+    ctx.save();
+    ctx.lineWidth = 1.0;
+    ctx.strokeStyle = isSelected ? 'rgba(56, 189, 248, 0.75)' : 'rgba(56, 189, 248, 0.35)';
+
+    function drawLineStrip(start, end, close = false) {
+      if (end >= landmarks2d.length) return;
+      ctx.beginPath();
+      ctx.moveTo(landmarks2d[start][0], landmarks2d[start][1]);
+      for (let i = start + 1; i <= end; i++) {
+        ctx.lineTo(landmarks2d[i][0], landmarks2d[i][1]);
+      }
+      if (close) {
+        ctx.lineTo(landmarks2d[start][0], landmarks2d[start][1]);
+      }
+      ctx.stroke();
+    }
+
+    if (landmarks2d.length >= 106) {
+      drawLineStrip(0, 32, false);   // Jawline contour
+      drawLineStrip(33, 42, false);  // Right eyebrow
+      drawLineStrip(43, 52, false);  // Left eyebrow
+      drawLineStrip(53, 62, false);  // Nose bridge
+      drawLineStrip(63, 71, true);   // Nose base & nostrils
+      drawLineStrip(72, 86, true);   // Outer lips
+      drawLineStrip(87, 96, true);   // Inner lips
+      drawLineStrip(97, 100, true);  // Right eye
+      drawLineStrip(101, 105, true); // Left eye
+
+      // Connecting facial triangulation lines
+      ctx.strokeStyle = isSelected ? 'rgba(56, 189, 248, 0.3)' : 'rgba(56, 189, 248, 0.12)';
+      ctx.beginPath();
+      ctx.moveTo(landmarks2d[53][0], landmarks2d[53][1]);
+      ctx.lineTo(landmarks2d[97][0], landmarks2d[97][1]);
+      ctx.moveTo(landmarks2d[53][0], landmarks2d[53][1]);
+      ctx.lineTo(landmarks2d[101][0], landmarks2d[101][1]);
+      ctx.moveTo(landmarks2d[67][0], landmarks2d[67][1]);
+      ctx.lineTo(landmarks2d[72][0], landmarks2d[72][1]);
+      ctx.stroke();
+
+      // Glowing landmark dots
+      ctx.fillStyle = isSelected ? '#38bdf8' : 'rgba(56, 189, 248, 0.5)';
+      landmarks2d.forEach(([lx, ly]) => {
+        ctx.beginPath();
+        ctx.arc(lx, ly, isSelected ? 1.6 : 1.2, 0, 2 * Math.PI);
+        ctx.fill();
+      });
+    } else {
+      ctx.beginPath();
+      landmarks2d.forEach(([lx, ly], i) => {
+        if (i === 0) ctx.moveTo(lx, ly);
+        else ctx.lineTo(lx, ly);
+      });
+      ctx.closePath();
+      ctx.stroke();
+      landmarks2d.forEach(([lx, ly]) => {
+        ctx.beginPath();
+        ctx.arc(lx, ly, 2, 0, 2 * Math.PI);
+        ctx.fill();
+      });
+    }
+    ctx.restore();
+  }
+
   function renderFacePreview() {
     if (!rawImageObj) return;
 
@@ -293,18 +412,61 @@ document.addEventListener('DOMContentLoaded', () => {
         const isSelected = idx === selectedFaceIndex;
 
         // Subtle Bounding Box
-        ctx.lineWidth = isSelected ? 3 : 1.5;
+        ctx.lineWidth = isSelected ? 2.5 : 1.5;
         ctx.strokeStyle = isSelected ? '#10b981' : 'rgba(255, 255, 255, 0.4)';
         ctx.strokeRect(x1, y1, x2 - x1, y2 - y1);
 
-        // 5-Point Reticle Landmarks
-        if (face.landmarks) {
-          ctx.fillStyle = isSelected ? '#EDEDED' : 'rgba(255, 255, 255, 0.5)';
-          face.landmarks.forEach(([lx, ly]) => {
+        // Face ID label above box for group photos
+        if (detectedFaces.length > 1) {
+          ctx.save();
+          ctx.font = '10px "JetBrains Mono", monospace';
+          ctx.fillStyle = isSelected ? '#10b981' : 'rgba(255, 255, 255, 0.6)';
+          ctx.fillText(`FACE ${String(idx + 1).padStart(2, '0')}`, x1 + 4, y1 - 4);
+          ctx.restore();
+        }
+
+        if (currentViewMode === 'geometry') {
+          // GEOMETRY VIEW: 106-Point Mesh & 3D Pose overlay
+          if (face.dense_geometry && face.dense_geometry.landmarks_2d) {
+            drawDenseFaceMesh(ctx, face.dense_geometry.landmarks_2d, isSelected);
+          } else if (face.landmarks) {
+            ctx.save();
+            ctx.lineWidth = 1.2;
+            ctx.strokeStyle = isSelected ? '#38bdf8' : 'rgba(56, 189, 248, 0.4)';
             ctx.beginPath();
-            ctx.arc(lx, ly, isSelected ? 3.5 : 2.5, 0, 2 * Math.PI);
-            ctx.fill();
-          });
+            ctx.moveTo(face.landmarks[0][0], face.landmarks[0][1]);
+            ctx.lineTo(face.landmarks[1][0], face.landmarks[1][1]);
+            ctx.lineTo(face.landmarks[2][0], face.landmarks[2][1]);
+            ctx.closePath();
+            ctx.moveTo(face.landmarks[2][0], face.landmarks[2][1]);
+            ctx.lineTo(face.landmarks[3][0], face.landmarks[3][1]);
+            ctx.lineTo(face.landmarks[4][0], face.landmarks[4][1]);
+            ctx.closePath();
+            ctx.stroke();
+            ctx.restore();
+          }
+
+          if (isSelected && face.dense_geometry && face.dense_geometry.pose_3d) {
+            const { pitch, yaw, roll } = face.dense_geometry.pose_3d;
+            ctx.save();
+            ctx.font = 'bold 11px "JetBrains Mono", monospace';
+            ctx.fillStyle = '#38bdf8';
+            ctx.shadowColor = 'rgba(0, 0, 0, 0.9)';
+            ctx.shadowBlur = 4;
+            const poseText = `3D POSE: P:${pitch >= 0 ? '+' : ''}${pitch.toFixed(1)}° Y:${yaw >= 0 ? '+' : ''}${yaw.toFixed(1)}° R:${roll >= 0 ? '+' : ''}${roll.toFixed(1)}°`;
+            ctx.fillText(poseText, x1 + 4, Math.max(16, y1 - 16));
+            ctx.restore();
+          }
+        } else {
+          // NORMAL VIEW: clean photo + subtle face box + 5-pt reticle dots (NO wireframe clutter)
+          if (face.landmarks) {
+            ctx.fillStyle = isSelected ? '#EDEDED' : 'rgba(255, 255, 255, 0.5)';
+            face.landmarks.forEach(([lx, ly]) => {
+              ctx.beginPath();
+              ctx.arc(lx, ly, isSelected ? 3.0 : 2.0, 0, 2 * Math.PI);
+              ctx.fill();
+            });
+          }
         }
       });
     }
@@ -416,6 +578,31 @@ document.addEventListener('DOMContentLoaded', () => {
     const pagesScanned = summary.pages_scanned || 1;
     const facesAnalyzed = summary.faces_evaluated || (data.all_candidates ? data.all_candidates.length : 0);
     hudDiscoveredCount.textContent = totalFound > 0 ? `${totalFound} (${pagesScanned}P · ${facesAnalyzed}F)` : '0 (NO RESULTS)';
+
+    // Multi-mode Discovery HUD breakdown
+    const dhud = data.discovery_hud || {};
+    if (hudExactCount) hudExactCount.textContent = dhud.exact_matches || 0;
+    if (hudVisualCount) hudVisualCount.textContent = dhud.visual_matches || (data.all_candidates ? data.all_candidates.length : 0);
+    if (hudAboutCount) hudAboutCount.textContent = dhud.about_image || 0;
+    if (hudPagesCount) hudPagesCount.textContent = dhud.pages_scanned || pagesScanned || 1;
+    if (hudUniqueSourcesCount) hudUniqueSourcesCount.textContent = dhud.unique_sources || (data.consensus_data ? data.consensus_data.domain_count : 0);
+    if (hudFacesCount) hudFacesCount.textContent = dhud.candidate_faces_evaluated || facesAnalyzed || 0;
+
+    // Image Metadata / EXIF update
+    if (data.image_metadata) {
+      const meta = data.image_metadata;
+      if (metaStatusLabel) metaStatusLabel.textContent = meta.status || 'NO METADATA';
+      if (faExifStatus) faExifStatus.textContent = meta.status || 'NO METADATA';
+      if (metaDimLabel) {
+        const dim = meta.width && meta.height ? `${meta.width}×${meta.height} px` : (rawImageObj ? `${rawImageObj.naturalWidth}×${rawImageObj.naturalHeight} px` : '--');
+        const dt = meta.datetime ? ` · ${meta.datetime.slice(0, 10)}` : '';
+        metaDimLabel.textContent = `${dim}${dt}`;
+      }
+      if (photoMetaBadge) {
+        if (meta.has_exif) photoMetaBadge.classList.add('has-exif');
+        else photoMetaBadge.classList.remove('has-exif');
+      }
+    }
 
     // Dynamic Platform Illumination based on ACTUAL returned platforms
     const tags = discoveredPlatformsStrip.querySelectorAll('.platform-tag');
@@ -558,6 +745,52 @@ document.addEventListener('DOMContentLoaded', () => {
       `;
       candidatesScrollStrip.appendChild(card);
     });
+
+    // Render Source Relationship Graph & Consensus Matrix
+    const srg = data.relationship_graph;
+    if (srg && srg.counts && srg.counts.total_nodes > 0 && sourceGraphSection) {
+      sourceGraphSection.style.display = 'block';
+      if (sgNodeCount) sgNodeCount.textContent = srg.counts.total_nodes;
+      if (sgConsensusSummary) {
+        const cData = data.consensus_data || {};
+        sgConsensusSummary.textContent = `${cData.domain_count || 0} DOMAINS · ${cData.consensus_level || 'CROSS-SOURCE'}`;
+      }
+      if (sourceGraphMatrix) {
+        sourceGraphMatrix.innerHTML = '';
+        const rels = srg.relationships || {};
+        const allRelNodes = [
+          ...(rels.same_image || []),
+          ...(rels.same_person_different_image || []),
+          ...(rels.visually_related_image || []),
+          ...(rels.different_person || []),
+          ...(rels.uncertain || [])
+        ];
+        allRelNodes.forEach(node => {
+          const card = document.createElement('div');
+          card.className = 'sg-node-card';
+          const rel = node.relationship || 'UNCERTAIN';
+          const relClass = rel === 'SAME_IMAGE' ? 'same-image' :
+                           rel === 'SAME_PERSON_DIFFERENT_IMAGE' ? 'same-person' :
+                           rel === 'VISUALLY_RELATED_IMAGE' ? 'visually-related' : 'different-person';
+          const relLabel = rel.replace(/_/g, ' ');
+          const simScore = typeof node.similarity === 'number' ? node.similarity.toFixed(3) : '--';
+          card.innerHTML = `
+            <div class="sg-node-header">
+              <span class="sg-rel-tag ${relClass}">${relLabel}</span>
+              <span class="sg-node-face">${node.matched_face_id || 'FACE 01'}</span>
+            </div>
+            <a class="sg-node-title" href="${node.link || '#'}" target="_blank" rel="noopener noreferrer">${node.title || node.domain || 'Discovered Source'}</a>
+            <div class="sg-node-meta">
+              <span class="sg-node-domain">${node.domain || node.platform || 'web'}</span>
+              <span class="sg-sim-score ${node.similarity >= 0.60 ? 'high' : ''}">${simScore} SIM</span>
+            </div>
+          `;
+          sourceGraphMatrix.appendChild(card);
+        });
+      }
+    } else if (sourceGraphSection) {
+      sourceGraphSection.style.display = 'none';
+    }
 
     // Initialize Tamper Demo
     initTamperDemo(data.manifest_hash || 'c1fee9bc922c13891469c9d40421c0ca2e7d97554cfd33f165c7a4c225740789');

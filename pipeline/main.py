@@ -31,9 +31,10 @@ from pipeline.face_id import (
     hash_embedding,
     normalize_embedding,
 )
-from pipeline.search import reverse_image_search, filter_social_matches
+from pipeline.search import reverse_image_search, filter_social_matches, extract_image_metadata
 from pipeline.fingerprint import (
     build_evidence_manifest,
+    build_source_relationship_graph,
     calculate_dynamic_confidence,
     calculate_separation_margin,
     compute_candidate_consensus,
@@ -241,6 +242,9 @@ def run_pipeline(
         sys.exit(1)
     timings["1_face_detect"] = time.perf_counter() - t0
 
+    image_metadata = extract_image_metadata(image_path)
+    dense_geom = query_analysis.get("dense_geometry")
+
     total_faces = query_analysis["face_count"]
     print(f"      -> Total Faces Detected : {total_faces}")
     print(f"      -> Selected Face Index  : {face_index} of {total_faces}")
@@ -250,6 +254,13 @@ def run_pipeline(
     print(f"         * Exposure   : {query_analysis['quality_breakdown']['exposure']:.4f}")
     print(f"         * Resolution : {query_analysis['quality_breakdown']['resolution']:.4f}")
     print(f"         * Frontality : {query_analysis['quality_breakdown']['frontality']:.4f}")
+    if dense_geom and dense_geom.get("pose_3d"):
+        p3d = dense_geom["pose_3d"]
+        print(f"      -> Dense 3D Head Pose   : Pitch {p3d['pitch']}°, Yaw {p3d['yaw']}°, Roll {p3d['roll']}°")
+        if dense_geom.get("metrics"):
+            m = dense_geom["metrics"]
+            print(f"      -> Facial Geometry      : IOD={m['inter_ocular_distance']}px, Consistency={m['landmark_consistency']:.2f}")
+    print(f"      -> Image EXIF Metadata  : {image_metadata['metadata_status']}")
     print(f"      -> Bounding Box Coordinates: {query_analysis['bbox']}")
     print(f"      -> Stage Latency        : {timings['1_face_detect']:.3f} s")
 
@@ -316,6 +327,12 @@ def run_pipeline(
     print(f"      -> Total Discovered     : {search_telemetry.get('total_discovered', len(candidates))}")
     print(f"      -> Unique Candidates    : {len(candidates)}")
     print(f"      -> Source Expansions    : {search_telemetry.get('source_expansions', 0)}")
+    if search_telemetry.get("search_modes_active"):
+        print(f"      -> Active Search Modes  : {', '.join(search_telemetry['search_modes_active'])}")
+    if search_telemetry.get("exact_matches_count") is not None:
+        print(f"         * Exact Matches      : {search_telemetry.get('exact_matches_count', 0)}")
+        print(f"         * Visual Matches     : {search_telemetry.get('visual_matches_count', 0)}")
+        print(f"         * About This Image   : {search_telemetry.get('about_image_count', 0)}")
     print(f"      -> Discovery Latency    : {timings['4_search_api']:.3f} s")
     platform_counts: dict[str, int] = {}
     for c in candidates:
@@ -435,6 +452,18 @@ def run_pipeline(
         platform_diversity=consensus_data["platform_count"],
     )
 
+    # Build Evidence Relationship Graph
+    relationship_graph = build_source_relationship_graph(
+        query_image_cid=query_cid,
+        evaluated_results=verified_results,
+        query_thumb_hash=query_face_hash,
+    )
+    print("      -> Source Relationship Graph:")
+    print(f"         * Same Image Duplicates: {relationship_graph['counts']['same_image']}")
+    print(f"         * Same Person (Diff Img): {relationship_graph['counts']['same_person_different_image']}")
+    print(f"         * Visually Related Imgs: {relationship_graph['counts']['visually_related_image']}")
+    print(f"         * Different Individuals: {relationship_graph['counts']['different_person']}")
+
     # ---------------------------------------------------------
     # [7/9] Canonical Evidence Manifest Generation (RFC-8785)
     # ---------------------------------------------------------
@@ -466,6 +495,9 @@ def run_pipeline(
         matched_face_id=matched_face_id,
         candidate_faces_evaluated=candidate_faces_evaluated,
         search_telemetry=search_telemetry,
+        relationship_graph=relationship_graph,
+        image_metadata=image_metadata,
+        dense_geometry=dense_geom,
     )
     timings["7_manifest"] = time.perf_counter() - t0
     print(f"      -> Manifest Schema      : {manifest.get('schema_version')}")

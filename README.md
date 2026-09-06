@@ -1,6 +1,6 @@
 # IDENTITY // VERIFY — Face Identification & Blockchain Verification
 
-[![Tests](https://img.shields.io/badge/pytest-49%20passed-brightgreen.svg)](tests/)
+[![Tests](https://img.shields.io/badge/pytest-55%20passed-brightgreen.svg)](tests/)
 [![Blockchain](https://img.shields.io/badge/Blockchain-Anvil%20%7C%20Polygon%20Amoy-blueviolet.svg)](https://book.getfoundry.sh/anvil/)
 [![Local EVM](https://img.shields.io/badge/Local%20Node-Anvil%20(31337)-3B82F6.svg)](http://127.0.0.1:8545)
 [![Public Testnet](https://img.shields.io/badge/Polygon-Amoy%20(80002)-8247E5.svg)](https://amoy.polygonscan.com/)
@@ -14,14 +14,15 @@
 In an era of digital media proliferation, establishing verifiable cryptographic provenance for discovered public web and social content is critical. When searching for public visual matches of a face image, conventional search engines cannot be treated as trusted arbiters of identity, and centralized web hosts can modify or delete evidence without an immutable record.
 
 **This system implements a decentralized, tamper-evident verification pipeline:**
-1. **Explainable Face Analysis**: Detects faces, evaluates multi-factor image quality (sharpness, exposure, resolution, frontality, confidence), supports multi-face selection, landmark-aligned ArcFace embedding with 5-point geometric normalization, and extracts 512-dimensional embeddings with deterministic SHA-256 fingerprints.
-2. **Multi-Source Visual Discovery**: Discovers matching public web and social media candidates via Google Lens (SerpApi) with honest pagination — follows `serpapi_pagination.next` continuation tokens until exhausted or a configurable maximum is reached. Reports exact pages scanned, raw results, unique candidates, and faces evaluated.
+1. **Explainable Face Analysis & Dense Biometric Mesh**: Detects faces, extracts dense 106-point 2D and 68-point 3D facial landmarks, true 3D head pose ($pitch, yaw, roll$), inter-ocular distance (IOD), boundary geometry, and landmark consistency. Preserves canonical SCRFD alignment for InsightFace ArcFace 512-d embeddings.
+2. **Multi-Mode Visual Web Discovery & Context**: Searches public visual indexes via Google Lens (SerpApi) using multiple legitimate modes (`exact_matches`, `visual_matches`, `about_this_image`) with honest pagination (follows `serpapi_pagination.next`). Extracts non-sensitive image EXIF metadata (dimensions, make, model, datetime).
 3. **Independent Multi-Face Candidate Verification**: Independently downloads and executes local ArcFace cosine similarity comparisons against **all faces** detected in candidate images (including group photos), without assuming the largest or most prominent face is the target.
-4. **Candidate Ranking & Separation Margin**: Ranks candidates deterministically by ArcFace similarity and calculates the separation margin gap between the best verified match and the strongest rejected candidate.
-5. **Multi-Tier Decision Engine**: Categorizes matches using configurable empirical thresholds (`VERIFIED`, `REVIEW`, `REJECTED`) with explicit decision reason codes.
-6. **Canonical Evidence Manifest (RFC-8785)**: Generates a deterministic JSON evidence manifest capturing complete provenance, quality scores, and separation metrics.
-7. **Strictly-Gated Blockchain Proof Anchoring**: Pins the manifest to IPFS via Pinata and anchors the cryptographic SHA-256 hash to a **local Anvil blockchain** (`Chain ID: 31337`) or **Polygon Amoy Testnet** (`Chain ID: 80002`) via `ProofRegistry.sol` **strictly when evidence reaches the high-confidence `VERIFIED` state**. `REVIEW`, `REJECTED`, and `NO RELIABLE MATCH` outcomes do **not** anchor to the ledger (PROOF NOT ANCHORED).
-8. **Independent Re-Verification & Tamper Detection**: Provides standalone public verification (`verify.py`) and multi-scenario cryptographic tamper detection (`tamper_demo.py`).
+4. **Source Relationship Graphing & Cross-Source Consensus**: Constructs an evidence relationship graph mapping discovered candidates to `SAME_IMAGE`, `SAME_PERSON_DIFFERENT_IMAGE`, `VISUALLY_RELATED_IMAGE`, and `DIFFERENT_PERSON`. Evaluates domain distribution and consensus strength.
+5. **Candidate Ranking & Separation Margin**: Ranks candidates deterministically by ArcFace similarity and calculates the separation margin gap between the best verified match and the strongest rejected candidate.
+6. **Multi-Tier Decision Engine**: Categorizes matches using configurable empirical thresholds (`VERIFIED`, `REVIEW`, `REJECTED`) with explicit decision reason codes.
+7. **Canonical Evidence Manifest (RFC-8785)**: Generates a deterministic JSON evidence manifest capturing complete provenance, quality scores, dense geometry summary, and separation metrics.
+8. **Strictly-Gated Blockchain Proof Anchoring**: Pins the manifest to IPFS via Pinata and anchors the cryptographic SHA-256 hash to a **local Anvil blockchain** (`Chain ID: 31337`) or **Polygon Amoy Testnet** (`Chain ID: 80002`) via `ProofRegistry.sol` **strictly when evidence reaches the high-confidence `VERIFIED` state**. `REVIEW`, `REJECTED`, and `NO RELIABLE MATCH` outcomes do **not** anchor to the ledger (PROOF NOT ANCHORED).
+9. **Independent Re-Verification & Tamper Detection**: Provides standalone public verification (`verify.py`) and multi-scenario cryptographic tamper detection (`tamper_demo.py`).
 
 ---
 
@@ -66,15 +67,15 @@ In an era of digital media proliferation, establishing verifiable cryptographic 
 
 ## 3. Technology Stack
 
-- **Face Recognition Engine**: [InsightFace](https://github.com/deepinsight/insightface) `buffalo_l` (SCRFD detector + ArcFace 512-dimensional embedding extractor) running locally on CPU with ONNX Runtime. 5-point geometric landmark alignment applied before each embedding.
-- **Reverse Visual Discovery**: SerpApi Google Lens engine (`type=visual_matches`) with honest `serpapi_pagination.next` continuation. Discovers indexed public web pages, blogs, and social platforms.
+- **Face Recognition Engine**: [InsightFace](https://github.com/deepinsight/insightface) `buffalo_l` (SCRFD detector + ArcFace 512-dimensional embedding extractor) running locally on CPU with ONNX Runtime. Dense 106-point 2D and 68-point 3D facial geometry layer for sub-pixel boundary estimation, 3D pose, and landmark consistency.
+- **Reverse Visual Discovery**: SerpApi Google Lens engine with multi-mode query (`exact_matches`, `visual_matches`, `about_this_image`) and honest `serpapi_pagination.next` continuation. Discovers indexed public web pages, blogs, and social platforms.
 - **Decentralized Storage**: IPFS via [Pinata](https://pinata.cloud/) with multi-gateway fallback resolution (Pinata, Cloudflare, IPFS.io, dweb.link).
 - **Blockchain Adapter Layer**:
   - **Local Development Node**: [Foundry Anvil](https://book.getfoundry.sh/anvil/) (Chain ID `31337`, fast instant local blocks, pre-funded development accounts).
   - **Public Testnet**: Polygon Amoy Testnet (Chain ID `80002`, Sepolia-anchored EVM testnet with dynamic EIP-1559 tip calculation).
 - **Smart Contract & Tooling**: Solidity `0.8.20`, Hardhat, and `web3.py`.
-- **Web Interface**: `IDENTITY // VERIFY` — near-black photo-centric UI with 3-column layout (face analysis, photo workspace, discovery panel), 6-stage pipeline stepper, and interactive tamper demo.
-- **Testing**: `pytest` (49 automated unit and integration tests covering vector math, deterministic hashing, manifest schema, separation margins, quality gates, Anvil blockchain adapter, multi-face group analysis, and contract logic).
+- **Web Interface**: `IDENTITY // VERIFY` — near-black photo-centric UI with 3-column layout (face analysis, photo workspace, discovery panel), interactive **Normal View** vs **Geometry View** toggle, Source Relationship Graph matrix, 6-stage pipeline stepper, and interactive tamper demo.
+- **Testing**: `pytest` (55 automated unit and integration tests covering vector math, deterministic hashing, manifest schema, separation margins, quality gates, dense 106-point geometry, 3D head pose, source relationship graph, Anvil blockchain adapter, multi-face group analysis, and contract logic).
 
 ---
 

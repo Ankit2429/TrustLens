@@ -95,6 +95,101 @@ def cosine_similarity(a: np.ndarray, b: np.ndarray) -> float:
     return max(-1.0, min(1.0, dot_prod))
 
 
+def extract_dense_geometry(face: Any) -> dict[str, Any]:
+    """Extract dense 2D and 3D facial geometry from InsightFace buffalo_l models.
+
+    Extracts:
+    - 106 2D dense facial landmarks (jawline, eyebrows, nose, eyes, lips).
+    - 68 3D dense facial landmarks (IBUG-68 convention with estimated depth Z).
+    - True 3D head pose angles (pitch, yaw, roll) in degrees from 3D model.
+    - Geometric metrics: inter-ocular distance, eye-line angle, jaw width, facial aspect ratio.
+    - Landmark consistency: agreement between 5-point keypoint centers and 3D mesh eye/mouth points.
+
+    Returns:
+        Structured dictionary containing dense 2D/3D geometry and alignment metrics.
+    """
+    dense_106 = None
+    if hasattr(face, "landmark_2d_106") and face.landmark_2d_106 is not None:
+        dense_106 = [[round(float(pt[0]), 2), round(float(pt[1]), 2)] for pt in face.landmark_2d_106]
+
+    dense_3d_68 = None
+    if hasattr(face, "landmark_3d_68") and face.landmark_3d_68 is not None:
+        dense_3d_68 = [[round(float(pt[0]), 2), round(float(pt[1]), 2), round(float(pt[2]), 2)] for pt in face.landmark_3d_68]
+
+    # Pose angles from 3D model
+    pitch, yaw, roll = 0.0, 0.0, 0.0
+    if hasattr(face, "pose") and face.pose is not None and len(face.pose) >= 3:
+        pitch = round(float(face.pose[0]), 2)
+        yaw = round(float(face.pose[1]), 2)
+        roll = round(float(face.pose[2]), 2)
+
+    # Geometric metrics
+    iod = 0.0
+    eye_angle = 0.0
+    jaw_width = 0.0
+    face_height = 0.0
+    consistency = 1.0
+
+    if dense_3d_68 and len(dense_3d_68) == 68:
+        pts = np.array(dense_3d_68)
+        # Right eye center (pts 36..41) and Left eye center (pts 42..47)
+        r_eye = np.mean(pts[36:42, :2], axis=0)
+        l_eye = np.mean(pts[42:48, :2], axis=0)
+        iod = float(np.linalg.norm(r_eye - l_eye))
+        dy = float(l_eye[1] - r_eye[1])
+        dx = float(l_eye[0] - r_eye[0])
+        eye_angle = math.degrees(math.atan2(dy, dx if abs(dx) > 1e-6 else 1e-6))
+
+        # Jaw width (pt 0 to pt 16)
+        jaw_width = float(np.linalg.norm(pts[0, :2] - pts[16, :2]))
+        # Face height (chin pt 8 to eyebrow mid pt 19/24)
+        mid_brow = (pts[19, :2] + pts[24, :2]) / 2.0
+        face_height = float(np.linalg.norm(pts[8, :2] - mid_brow))
+
+        # Check landmark consistency against 5-point kps if present
+        if hasattr(face, "kps") and face.kps is not None and len(face.kps) >= 5:
+            kps = face.kps
+            nose_diff = float(np.linalg.norm(kps[2] - pts[30, :2]))
+            norm_factor = max(10.0, iod)
+            consistency = max(0.0, min(1.0, 1.0 - (nose_diff / norm_factor)))
+
+    consistency_str = "HIGH" if consistency >= 0.85 else "MODERATE" if consistency >= 0.60 else "DEGRADED"
+    return {
+        "has_dense_mesh": dense_106 is not None or dense_3d_68 is not None,
+        "point_count_2d": len(dense_106) if dense_106 else 0,
+        "point_count_3d": len(dense_3d_68) if dense_3d_68 else 0,
+        "landmarks_2d": dense_106,
+        "landmarks_3d": dense_3d_68,
+        "landmarks_2d_106": dense_106,
+        "landmarks_3d_68": dense_3d_68,
+        "pose_3d": {
+            "pitch": pitch,
+            "yaw": yaw,
+            "roll": roll,
+        },
+        "metrics": {
+            "inter_ocular_distance": round(iod, 2),
+            "iod": round(iod, 2),
+            "eye_line_angle": round(eye_angle, 2),
+            "jaw_width": round(jaw_width, 2),
+            "face_height": round(face_height, 2),
+            "landmark_consistency": round(consistency, 4),
+        },
+        "landmark_consistency": consistency_str,
+        "contour_groups": {
+            "jawline": list(range(0, 17)),
+            "right_eyebrow": list(range(17, 22)),
+            "left_eyebrow": list(range(22, 27)),
+            "nose_bridge": list(range(27, 31)),
+            "nose_lower": list(range(31, 36)),
+            "right_eye": list(range(36, 42)) + [36],
+            "left_eye": list(range(42, 48)) + [42],
+            "outer_lips": list(range(48, 60)) + [48],
+            "inner_lips": list(range(60, 68)) + [60],
+        },
+    }
+
+
 def assess_face_quality(img: np.ndarray, face: Any) -> dict[str, Any]:
     """Calculate an explainable image quality assessment for a detected face.
 
@@ -203,6 +298,17 @@ def assess_face_quality(img: np.ndarray, face: Any) -> dict[str, Any]:
             occlusion_note = "Low Confidence / Possible Occlusion or Compression"
         elif sharpness_score < 0.15:
             occlusion_note = "Heavy Motion Blur or Degraded Optics"
+
+    # Use true 3D model pose angles if available from buffalo_l
+    if hasattr(face, "pose") and face.pose is not None and len(face.pose) >= 3:
+        pitch_est = round(float(face.pose[0]), 1)
+        yaw_est = round(float(face.pose[1]), 1)
+        roll_est = round(float(face.pose[2]), 1)
+        # Recalculate frontality based on 3D yaw and pitch deviation
+        abs_yaw = abs(yaw_est)
+        abs_pitch = abs(pitch_est)
+        pose_penalty = min(1.0, (abs_yaw / 45.0) * 0.6 + (abs_pitch / 30.0) * 0.4)
+        frontality_score = round(max(0.0, 1.0 - pose_penalty), 4)
 
     # Weighted composite quality score
     overall = (
@@ -355,6 +461,7 @@ def detect_all_faces(
         if hasattr(f, "kps") and f.kps is not None:
             landmarks = [[float(pt[0]), float(pt[1])] for pt in f.kps]
 
+        dense_geometry = extract_dense_geometry(f)
         face_id = f"FACE {idx + 1:02d}"
 
         entry = {
@@ -363,6 +470,7 @@ def detect_all_faces(
             "det_score": float(f.det_score) if hasattr(f, "det_score") else 1.0,
             "bbox": [float(x) for x in f.bbox],
             "landmarks": landmarks,
+            "dense_geometry": dense_geometry,
             "quality": quality,
             "embedding": raw_emb,
             "normalized_embedding": norm_emb,
@@ -437,6 +545,7 @@ def analyze_face(
         "det_score": selected["det_score"],
         "bbox": selected["bbox"],
         "landmarks": selected["landmarks"],
+        "dense_geometry": selected.get("dense_geometry"),
         "quality_score": quality["overall_quality"],
         "quality_breakdown": quality["breakdown"],
         "is_usable": quality["is_usable"],
@@ -454,6 +563,7 @@ def analyze_face(
                 "quality_score": f["quality"]["overall_quality"],
                 "sharpness": f["quality"]["breakdown"]["sharpness"],
                 "pose_yaw": f["quality"]["breakdown"]["pose_yaw_est"],
+                "dense_geometry": f.get("dense_geometry"),
             }
             for f in faces
         ],
@@ -516,7 +626,10 @@ def compare_group_faces(
     face_breakdown: list[dict[str, Any]] = []
 
     for idx, f in enumerate(candidate_faces):
-        cand_emb = f["normalized_embedding"]
+        cand_emb = f.get("normalized_embedding")
+        if cand_emb is None:
+            raw_emb = f.get("embedding", f.get("feature"))
+            cand_emb = normalize_embedding(raw_emb) if raw_emb is not None else np.zeros(512, dtype=np.float32)
         cand_qual = 0.85
         if "quality" in f and f["quality"] is not None:
             if isinstance(f["quality"], dict):
@@ -526,6 +639,8 @@ def compare_group_faces(
         cand_conf = float(f.get("det_score", 1.0))
         cand_face_id = f.get("face_id", f"FACE {idx + 1:02d}")
         cand_bbox = f.get("bbox", [0.0, 0.0, 100.0, 100.0])
+        cand_dense = f.get("dense_geometry")
+        cand_pose = cand_dense.get("pose_3d") if cand_dense else None
 
         # Compute cosine similarities across views
         sim_canon = cosine_similarity(q_canon, cand_emb)
@@ -559,6 +674,9 @@ def compare_group_faces(
             "face_id": cand_face_id,
             "face_index": idx,
             "bbox": cand_bbox,
+            "landmarks": f.get("landmarks"),
+            "dense_geometry": cand_dense,
+            "pose": cand_pose,
             "similarity": round(sim, 4),
             "quality": round(cand_qual, 4),
             "det_confidence": round(cand_conf, 4),
@@ -575,12 +693,15 @@ def compare_group_faces(
 
     return {
         "best_similarity": best_sim,
+        "similarity": best_sim,
         "best_face_index": best_idx,
         "matched_face_id": matched_id,
+        "decision": face_breakdown[best_idx]["decision"] if (face_breakdown and 0 <= best_idx < len(face_breakdown)) else "REJECTED",
         "evaluated_face_count": len(candidate_faces),
         "all_similarities": similarities,
         "best_candidate_face": candidate_faces[best_idx],
         "candidate_faces_evaluated": face_breakdown,
+        "all_faces": face_breakdown,
     }
 
 

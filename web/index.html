@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500;600;700&family=Space+Grotesk:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="style.css?v=2">
+  <link rel="stylesheet" href="style.css?v=6">
 </head>
 <body class="app-body">
   <!-- Minimal Ambient Stage Background -->
@@ -157,8 +157,20 @@
               <span class="t-value" id="faFaceSize">184 × 184 px</span>
             </div>
             <div class="telemetry-cell">
-              <span class="t-label">ESTIMATED POSE</span>
-              <span class="t-value" id="faPose">4°</span>
+              <span class="t-label">ESTIMATED POSE (3D)</span>
+              <span class="t-value" id="faPose">0°</span>
+            </div>
+            <div class="telemetry-cell">
+              <span class="t-label">DENSE BIOMETRIC MESH</span>
+              <span class="t-value highlight" id="faDenseMesh">106-PT ACTIVE</span>
+            </div>
+            <div class="telemetry-cell">
+              <span class="t-label">IOD & CONSISTENCY</span>
+              <span class="t-value" id="faConsistency">--</span>
+            </div>
+            <div class="telemetry-cell">
+              <span class="t-label">IMAGE METADATA (EXIF)</span>
+              <span class="t-value" id="faExifStatus">NO METADATA</span>
             </div>
             <div class="telemetry-cell">
               <span class="t-label">SHARPNESS METRIC</span>
@@ -178,6 +190,24 @@
         <!-- CENTER COLUMN: HERO PHOTO -->
         <div class="col-hero-photo">
           <div class="photo-frame-container">
+
+            <!-- View Mode Toggle & EXIF Status Bar -->
+            <div class="photo-controls-toolbar">
+              <div class="view-mode-toggle" id="viewModeToggle">
+                <button class="view-mode-btn active" id="viewModeNormalBtn" type="button" title="Normal View: Photo + Face Boundary">
+                  <span class="vm-dot"></span> NORMAL VIEW
+                </button>
+                <button class="view-mode-btn" id="viewModeGeometryBtn" type="button" title="Geometry View: 106-Point Dense Biometric Mesh & 3D Pose">
+                  <span class="vm-icon">⬡</span> GEOMETRY VIEW
+                </button>
+              </div>
+              <div class="photo-meta-badge" id="photoMetaBadge">
+                <span class="meta-dot"></span>
+                <span class="meta-status" id="metaStatusLabel">NO METADATA</span>
+                <span class="meta-dim" id="metaDimLabel">--</span>
+              </div>
+            </div>
+
             <div class="photo-viewport-wrap" id="previewWrap">
               <canvas id="faceCanvas"></canvas>
               
@@ -218,7 +248,7 @@
         <aside class="col-discovery">
           <div class="col-header-label">
             <span class="col-kicker">02 // SEARCH & MATCH</span>
-            <h3 class="col-title">DISCOVERY</h3>
+            <h3 class="col-title">DISCOVERY HUD</h3>
           </div>
 
           <!-- Live Discovery Stream HUD -->
@@ -228,6 +258,38 @@
               <span class="disc-count-label"><strong id="hudDiscoveredCount">0</strong> CANDIDATES</span>
             </div>
 
+            <!-- Multi-Mode Search Breakdown -->
+            <div class="hud-modes-breakdown" id="hudModesBreakdown">
+              <div class="hud-mode-pill" title="Exact identical image matches">
+                <span class="hud-mode-name">EXACT MATCHES</span>
+                <span class="hud-mode-count" id="hudExactCount">0</span>
+              </div>
+              <div class="hud-mode-pill" title="Visual reverse image search matches">
+                <span class="hud-mode-name">VISUAL MATCHES</span>
+                <span class="hud-mode-count" id="hudVisualCount">0</span>
+              </div>
+              <div class="hud-mode-pill" title="About this image & entity context">
+                <span class="hud-mode-name">ABOUT IMAGE</span>
+                <span class="hud-mode-count" id="hudAboutCount">0</span>
+              </div>
+            </div>
+
+            <!-- Telemetry Sub-row -->
+            <div class="hud-sub-stats">
+              <div class="hud-stat-item">
+                <span class="hsi-key">PAGES:</span>
+                <span class="hsi-val" id="hudPagesCount">1</span>
+              </div>
+              <div class="hud-stat-item">
+                <span class="hsi-key">SOURCES:</span>
+                <span class="hsi-val" id="hudUniqueSourcesCount">0</span>
+              </div>
+              <div class="hud-stat-item">
+                <span class="hsi-key">CANDIDATE FACES:</span>
+                <span class="hsi-val" id="hudFacesCount">0</span>
+              </div>
+            </div>
+
             <div class="platform-indicators-matrix" id="discoveredPlatformsStrip">
               <span class="platform-tag" data-platform="x">X</span>
               <span class="platform-tag" data-platform="instagram">INSTAGRAM</span>
@@ -235,6 +297,7 @@
               <span class="platform-tag" data-platform="youtube">YOUTUBE</span>
               <span class="platform-tag" data-platform="facebook">FACEBOOK</span>
               <span class="platform-tag" data-platform="reddit">REDDIT</span>
+              <span class="platform-tag" data-platform="pinterest">PINTEREST</span>
               <span class="platform-tag" data-platform="news">NEWS</span>
               <span class="platform-tag" data-platform="web">WEB</span>
             </div>
@@ -376,6 +439,15 @@
 
         </div>
 
+        <!-- Source Relationship Graph & Cross-Source Consensus Deck -->
+        <div class="source-graph-section" id="sourceGraphSection" style="display:none">
+          <div class="gallery-header-bar">
+            <span class="gallery-header-title">SOURCE RELATIONSHIP GRAPH & CONSENSUS (<span id="sgNodeCount">0</span> SOURCES)</span>
+            <span class="gallery-header-sub" id="sgConsensusSummary">0 DOMAINS · NO CONSENSUS</span>
+          </div>
+          <div class="source-graph-matrix" id="sourceGraphMatrix"></div>
+        </div>
+
         <!-- Compact Supporting Candidate Cards Gallery -->
         <div class="candidates-correlations-section" id="candidatesGallerySection">
           <div class="gallery-header-bar">
@@ -501,6 +573,6 @@
     </div>
   </footer>
 
-  <script src="app.js?v=2"></script>
+  <script src="app.js?v=6"></script>
 </body>
 </html>

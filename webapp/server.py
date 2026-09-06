@@ -36,9 +36,10 @@ from pipeline.face_id import (
     hash_embedding,
     normalize_embedding,
 )
-from pipeline.search import reverse_image_search, filter_social_matches
+from pipeline.search import reverse_image_search, filter_social_matches, extract_image_metadata
 from pipeline.fingerprint import (
     build_evidence_manifest,
+    build_source_relationship_graph,
     calculate_dynamic_confidence,
     calculate_separation_margin,
     compute_candidate_consensus,
@@ -162,6 +163,7 @@ async def detect_faces_endpoint(image: UploadFile = File(...)):
                 "det_score": round(float(f["det_score"]), 4),
                 "bbox": [round(float(x), 2) for x in f["bbox"]],
                 "landmarks": f.get("landmarks"),
+                "dense_geometry": f.get("dense_geometry"),
                 "quality": f["quality"],
                 "embedding_hash": f["embedding_hash"],
             })
@@ -348,6 +350,15 @@ async def analyze_and_execute_pipeline(
         # [7/9] Evidence Manifest Generation (RFC-8785)
         t0 = time.perf_counter()
         stages_log.append({"stage": 7, "name": "Canonical Evidence Manifest (RFC-8785)", "status": "RUNNING"})
+
+        image_metadata = extract_image_metadata(tmp_path)
+        dense_geom = query_analysis.get("dense_geometry")
+        relationship_graph = build_source_relationship_graph(
+            query_image_cid=query_cid,
+            evaluated_results=raw_eval_results,
+            query_thumb_hash=query_analysis.get("embedding_hash"),
+        )
+
         matched_candidate_dict = {
             "link": best_match["link"],
             "title": best_match["title"],
@@ -380,6 +391,9 @@ async def analyze_and_execute_pipeline(
             matched_face_id=best_match.get("matched_face_id"),
             candidate_faces_evaluated=best_match.get("candidate_faces_evaluated"),
             search_telemetry=search_telemetry,
+            relationship_graph=relationship_graph,
+            image_metadata=image_metadata,
+            dense_geometry=dense_geom,
         )
         timings["7_manifest"] = time.perf_counter() - t0
         stages_log[-1]["status"] = "SUCCESS"
@@ -412,6 +426,19 @@ async def analyze_and_execute_pipeline(
 
         total_latency = time.perf_counter() - t_start
 
+        discovery_hud = {
+            "exact_matches": search_telemetry.get("exact_matches_count", 0),
+            "visual_matches": search_telemetry.get("visual_matches_count", len(candidates)),
+            "about_this_image": search_telemetry.get("about_image_count", 0),
+            "unique_pages": len({c.get("link") for c in candidates if c.get("link")}),
+            "unique_images": len({c.get("thumbnail") for c in candidates if c.get("thumbnail")}),
+            "candidate_faces": total_faces_evaluated,
+            "search_modes_active": search_telemetry.get("search_modes_active", ["visual_matches"]),
+            "platforms": sorted(list(set(search_telemetry.get("platforms_discovered", [])))),
+            "search_request_id": search_telemetry.get("search_request_id"),
+            "pages_scanned": search_telemetry.get("pages_scanned", 1),
+        }
+
         return {
             "success": True,
             "stages_log": stages_log,
@@ -423,8 +450,14 @@ async def analyze_and_execute_pipeline(
                 "quality_breakdown": query_analysis["quality_breakdown"],
                 "embedding_hash": query_analysis["embedding_hash"],
                 "bbox": query_analysis["bbox"],
+                "landmarks": query_analysis.get("landmarks"),
+                "dense_geometry": dense_geom,
                 "query_cid": query_cid,
             },
+            "discovery_hud": discovery_hud,
+            "dense_geometry": dense_geom,
+            "image_metadata": image_metadata,
+            "relationship_graph": relationship_graph,
             "search_summary": {
                 "pages_scanned": search_telemetry.get("pages_scanned", 1),
                 "total_discovered": search_telemetry.get("total_discovered", len(candidates)),

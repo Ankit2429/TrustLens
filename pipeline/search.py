@@ -247,7 +247,7 @@ def reverse_image_search(
         pages_scanned += 1
 
         # Multi-category result extraction.
-        # SerpApi Google Lens "reverse_image_search" can be a list of matches,
+        # 1. SerpApi Google Lens "reverse_image_search" can be a list of matches,
         # or a dict containing an inline_images list.
         ris_raw = data.get("reverse_image_search")
         ris_items: list[dict[str, Any]] = []
@@ -263,10 +263,39 @@ def reverse_image_search(
                         "source": img.get("source", ""),
                     })
 
+        # 2. Knowledge Graph and About This Image context
+        kg = data.get("knowledge_graph", {})
+        about_img = data.get("about_this_image", {})
+        about_results: list[dict[str, Any]] = []
+        if isinstance(kg, dict) and (kg.get("title") or kg.get("link") or kg.get("header_images")):
+            kg_thumb = ""
+            if kg.get("header_images") and isinstance(kg["header_images"], list) and len(kg["header_images"]) > 0:
+                kg_thumb = kg["header_images"][0].get("image", "")
+            about_results.append({
+                "title": f"[Knowledge Graph] {kg.get('title', '')}: {kg.get('subtitle', '')}".strip(),
+                "link": kg.get("link", ""),
+                "thumbnail": kg_thumb,
+                "source": kg.get("source", {}).get("name", "Knowledge Graph") if isinstance(kg.get("source"), dict) else "Knowledge Graph",
+                "snippet": kg.get("description", ""),
+            })
+        if isinstance(about_img, dict) and about_img.get("images"):
+            for ai in about_img["images"]:
+                if isinstance(ai, dict):
+                    about_results.append({
+                        "title": f"[About This Image] {ai.get('title', 'Related Context')}",
+                        "link": ai.get("link", ""),
+                        "thumbnail": ai.get("thumbnail", ""),
+                        "source": ai.get("source", "About This Image"),
+                        "snippet": ai.get("snippet", ""),
+                    })
+
+        search_req_id = data.get("search_metadata", {}).get("id")
+
         categories_to_check = [
             ("visual_matches", data.get("visual_matches", [])),
             ("exact_matches", data.get("exact_matches", [])),
             ("reverse_image_search", ris_items),
+            ("about_this_image", about_results),
             ("images_results", data.get("images_results", [])),
         ]
 
@@ -306,8 +335,10 @@ def reverse_image_search(
                     "source": match.get("source", domain or "Web"),
                     "snippet": match.get("snippet", "").strip(),
                     "category": cat_name,
+                    "search_mode": cat_name,
                     "page": page_idx,
                     "discovery_timestamp": req_start,
+                    "search_request_id": search_req_id,
                 }
                 candidates.append(candidate_entry)
                 new_candidates_on_page += 1
@@ -348,6 +379,19 @@ def reverse_image_search(
                 except Exception:
                     pass
 
+    # Count search mode breakdowns
+    exact_matches_count = sum(1 for c in candidates if c.get("category") == "exact_matches")
+    visual_matches_count = sum(1 for c in candidates if c.get("category") in ("visual_matches", "reverse_image_search", "images_results", "source_page_expansion"))
+    about_image_count = sum(1 for c in candidates if c.get("category") == "about_this_image")
+
+    active_modes = set()
+    if exact_matches_count > 0:
+        active_modes.add("exact_matches")
+    if visual_matches_count > 0:
+        active_modes.add("visual_matches")
+    if about_image_count > 0:
+        active_modes.add("about_this_image")
+
     telemetry = {
         "pages_scanned": pages_scanned,
         "total_discovered": raw_results_count,
@@ -355,11 +399,95 @@ def reverse_image_search(
         "platforms_discovered": sorted(list(platforms_discovered)),
         "source_expansions": expansions_done,
         "categories_scanned": sorted(list(categories_discovered)),
+        "search_modes_queried": ["visual_matches", "exact_matches", "about_this_image"],
+        "search_modes_active": sorted(list(active_modes)),
+        "exact_matches_count": exact_matches_count,
+        "visual_matches_count": visual_matches_count,
+        "about_image_count": about_image_count,
+        "search_request_id": search_req_id,
     }
 
     if return_telemetry:
         return candidates, telemetry
     return candidates
+
+
+def extract_image_metadata(image_path: Union[str, os.PathLike]) -> dict[str, Any]:
+    """Inspect and extract camera and non-sensitive image metadata (EXIF).
+
+    Inspects:
+    - Dimensions (width, height)
+    - Camera Make & Model
+    - DateTime Original
+    - Orientation
+    - Format (JPEG, PNG, etc.)
+
+    Returns:
+        Structured dictionary containing metadata fields and 'metadata_status':
+        'METADATA AVAILABLE' or 'NO METADATA'.
+    """
+    if not os.path.exists(str(image_path)):
+        return {
+            "metadata_status": "NO METADATA",
+            "has_exif": False,
+            "dimensions": None,
+            "format": None,
+        }
+
+    try:
+        from PIL import Image, ExifTags
+
+        with Image.open(str(image_path)) as img:
+            w, h = img.size
+            fmt = img.format
+            exif_raw = img.getexif()
+            has_exif = bool(exif_raw and len(exif_raw) > 0)
+
+            make = None
+            model = None
+            dt_orig = None
+            orientation = None
+
+            if has_exif:
+                for tag_id, val in exif_raw.items():
+                    tag_name = ExifTags.TAGS.get(tag_id, str(tag_id))
+                    if tag_name == "Make" and val:
+                        make = str(val).strip()
+                    elif tag_name == "Model" and val:
+                        model = str(val).strip()
+                    elif tag_name in ("DateTimeOriginal", "DateTime") and val:
+                        dt_orig = str(val).strip()
+                    elif tag_name == "Orientation" and val:
+                        try:
+                            orientation = int(val)
+                        except (ValueError, TypeError):
+                            pass
+
+            has_camera_data = bool(make or model or dt_orig)
+            status = "METADATA AVAILABLE" if (has_exif and has_camera_data) else "NO METADATA"
+
+            return {
+                "metadata_status": status,
+                "status": status,
+                "has_exif": has_exif,
+                "dimensions": f"{w}x{h}",
+                "width": w,
+                "height": h,
+                "format": fmt,
+                "camera_make": make,
+                "camera_model": model,
+                "datetime_original": dt_orig,
+                "datetime": dt_orig,
+                "orientation": orientation,
+            }
+    except Exception:
+        return {
+            "metadata_status": "NO METADATA",
+            "status": "NO METADATA",
+            "has_exif": False,
+            "dimensions": None,
+            "format": None,
+        }
 
 
 def filter_social_matches(matches: list[dict[str, Any]]) -> list[dict[str, Any]]:
