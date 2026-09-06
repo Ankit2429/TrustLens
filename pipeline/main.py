@@ -1,7 +1,7 @@
-"""End-to-end pipeline: face scan -> multi-platform web discovery -> independent face verification -> IPFS -> Polygon Amoy proof.
+"""End-to-end pipeline: face scan -> multi-platform web discovery -> independent face verification -> IPFS -> blockchain proof.
 
 Usage:
-    python -m pipeline.main path/to/face.jpg [--face-index 0] [--verified-threshold 0.45] [--review-threshold 0.38] [--min-quality 0.20] [--skip-blockchain]
+    python -m pipeline.main path/to/face.jpg [--face-index 0] [--verified-threshold 0.60] [--review-threshold 0.40] [--min-quality 0.20] [--skip-blockchain]
 """
 import argparse
 import concurrent.futures
@@ -46,16 +46,15 @@ from pipeline.chain import register_proof, get_proof
 load_dotenv()
 
 # Biometric Decision Thresholds
-# Note: Cosine similarity thresholds are empirical heuristics calibrated on standard ArcFace distributions.
-# - VERIFIED (>= 0.45): High-confidence biometric similarity confirming candidate match against query face.
-# - REVIEW (0.38 - 0.45): Borderline / ambiguous candidate or degraded quality requiring manual inspection.
+# Cosine similarity thresholds calibrated on standard ArcFace distributions:
 # - VERIFIED (>= 0.60): High-confidence genuine identity match across diverse real-world conditions.
-# - REVIEW (0.40 - 0.60): Borderline / manual review required (adverse lighting, heavy compression, avatar).
-# - REJECTED (< 0.40): Unrelated candidate clearly below the biometric decision boundary.
+# - REVIEW  (0.40–0.60): Borderline / manual review required (adverse lighting, heavy compression, avatar).
+# - REJECTED (< 0.40):  Unrelated candidate clearly below the biometric decision boundary.
 DEFAULT_VERIFIED_THRESHOLD = float(os.environ.get("VERIFIED_THRESHOLD", "0.60"))
 DEFAULT_REVIEW_THRESHOLD = float(os.environ.get("REVIEW_THRESHOLD", "0.40"))
 DEFAULT_MIN_QUALITY = float(os.environ.get("MIN_QUALITY_THRESHOLD", "0.20"))
 DEFAULT_MAX_CANDIDATES = int(os.environ.get("MAX_CANDIDATES", "40"))
+
 
 
 def classify_decision(
@@ -67,9 +66,9 @@ def classify_decision(
     """Determine verification decision and explainable rationale code.
 
     Decision Categories:
-    - VERIFIED: Similarity crosses verified threshold (>= 0.45) and candidate passes face quality checks.
+    - VERIFIED: Similarity crosses verified threshold (>= 0.60 default) and candidate passes quality checks.
     - REVIEW: Similarity is near boundary (review <= sim < verified) or high-similarity face with degraded quality.
-    - REJECTED: Similarity is below review threshold (< 0.35) or low-quality face below threshold (unrelated identity).
+    - REJECTED: Similarity is below review threshold (< 0.40 default) — unrelated identity.
 
     Returns:
         (decision, reason_str) where decision is 'VERIFIED', 'REVIEW', or 'REJECTED'.
@@ -197,6 +196,8 @@ def evaluate_candidates_concurrently(
                 "reason": reason,
                 "face_count": group_eval["evaluated_face_count"],
                 "best_face_index": group_eval["best_face_index"],
+                "matched_face_id": group_eval.get("matched_face_id", f"FACE {group_eval['best_face_index'] + 1:02d}"),
+                "candidate_faces_evaluated": group_eval.get("candidate_faces_evaluated", []),
                 "det_confidence": best_cand_face["det_score"],
                 "image_quality": cand_quality,
                 "thumbnail_sha256": thumb_hash,
@@ -287,10 +288,21 @@ def run_pipeline(
     # [4/9] Multi-Source & Multi-Platform Web Discovery
     # ---------------------------------------------------------
     print("\n[4/9] Performing multi-source visual discovery across indexed web & social platforms")
-    print("      (Querying SerpApi Google Lens engine...)")
+    print("      (Querying SerpApi Google Lens engine with deep pagination & source expansion...)")
     t0 = time.perf_counter()
     try:
-        candidates = reverse_image_search(public_search_url)
+        search_res = reverse_image_search(public_search_url, return_telemetry=True)
+        if isinstance(search_res, tuple):
+            candidates, search_telemetry = search_res
+        else:
+            candidates = search_res
+            search_telemetry = {
+                "pages_scanned": 1,
+                "total_discovered": len(candidates),
+                "unique_candidates": len(candidates),
+                "platforms_discovered": list({c.get("platform", "General Web") for c in candidates}),
+                "source_expansions": 0,
+            }
         timings["4_search_api"] = time.perf_counter() - t0
     except Exception as e:
         print(f"[-] Discovery failed: {e}. Check SERPAPI_KEY in .env.")
@@ -300,7 +312,11 @@ def run_pipeline(
         print("[-] No visual matches discovered. Try a more distinctive public photo.")
         sys.exit(1)
 
-    print(f"      -> Discovered {len(candidates)} candidate result(s) in {timings['4_search_api']:.3f} s")
+    print(f"      -> Pages Scanned        : {search_telemetry.get('pages_scanned', 1)}")
+    print(f"      -> Total Discovered     : {search_telemetry.get('total_discovered', len(candidates))}")
+    print(f"      -> Unique Candidates    : {len(candidates)}")
+    print(f"      -> Source Expansions    : {search_telemetry.get('source_expansions', 0)}")
+    print(f"      -> Discovery Latency    : {timings['4_search_api']:.3f} s")
     platform_counts: dict[str, int] = {}
     for c in candidates:
         plat = c.get("platform", "General Web")
@@ -424,6 +440,8 @@ def run_pipeline(
     # ---------------------------------------------------------
     print("\n[7/9] Building RFC-8785 canonical evidence manifest and SHA-256 fingerprint")
     t0 = time.perf_counter()
+    matched_face_id = best_result.get("matched_face_id", "FACE 01")
+    candidate_faces_evaluated = best_result.get("candidate_faces_evaluated", [])
     manifest, manifest_hash = build_evidence_manifest(
         query_face_metadata=query_face_meta,
         candidate=matched_candidate,
@@ -445,11 +463,15 @@ def run_pipeline(
         thumbnail_sha256=thumbnail_sha256,
         confidence_data=confidence_data,
         consensus_data=consensus_data,
+        matched_face_id=matched_face_id,
+        candidate_faces_evaluated=candidate_faces_evaluated,
+        search_telemetry=search_telemetry,
     )
     timings["7_manifest"] = time.perf_counter() - t0
     print(f"      -> Manifest Schema      : {manifest.get('schema_version')}")
     print(f"      -> Decision Verdict     : [{decision}]")
     print(f"      -> Dynamic Confidence   : {confidence_data['confidence_score']:.4f}")
+    print(f"      -> Matched Candidate Face: [{matched_face_id}]")
     print(f"      -> Subject / Source URL : {matched_candidate.get('link')}")
     print(f"      -> Platform Category    : {matched_candidate.get('platform')}")
     print(f"      -> Canonical SHA256 Hash: {manifest_hash}")

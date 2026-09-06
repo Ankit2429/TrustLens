@@ -75,7 +75,7 @@ def test_webapp_integration():
     print("\n[7/7] Testing GET / (Static Web UI)...")
     r = requests.get(f"{BASE_URL}/", timeout=10)
     assert r.status_code == 200, f"Frontend index.html failed: {r.status_code}"
-    assert "TRUSTLENS" in r.text, "Index HTML missing TRUSTLENS title"
+    assert "IDENTITY" in r.text, "Index HTML missing IDENTITY product mark"
     print("      Static Frontend served correctly.")
 
     print("\n=======================================================")

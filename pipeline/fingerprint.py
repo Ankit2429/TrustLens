@@ -10,15 +10,31 @@ import time
 from typing import Any, Optional
 
 
+def _normalize_numbers(obj: Any) -> Any:
+    """Normalize numeric types in accordance with RFC-8785 Section 3.2.2.3.
+
+    Integer values (including floats with no fractional part like 1.0 or 0.0)
+    must be formatted without a fractional part (e.g. 1 instead of 1.0).
+    """
+    if isinstance(obj, float) and obj.is_integer():
+        return int(obj)
+    if isinstance(obj, dict):
+        return {k: _normalize_numbers(v) for k, v in obj.items()}
+    if isinstance(obj, (list, tuple)):
+        return [_normalize_numbers(v) for v in obj]
+    return obj
+
+
 def canonical_json_bytes(obj: Any) -> bytes:
     """Serialize any Python dictionary or data structure into canonical JSON UTF-8 bytes.
 
     - Lexicographically sorted keys
+    - RFC-8785 integer-float canonical representation
     - Compact separators (no extra whitespace: `(`,`:`)`)
     - Deterministic UTF-8 encoding
     """
     return json.dumps(
-        obj,
+        _normalize_numbers(obj),
         sort_keys=True,
         separators=(",", ":"),
         ensure_ascii=False,
@@ -193,6 +209,9 @@ def build_evidence_manifest(
     blockchain_info: Optional[dict[str, Any]] = None,
     confidence_data: Optional[dict[str, Any]] = None,
     consensus_data: Optional[dict[str, Any]] = None,
+    matched_face_id: Optional[str] = None,
+    candidate_faces_evaluated: Optional[list[dict[str, Any]]] = None,
+    search_telemetry: Optional[dict[str, Any]] = None,
 ) -> tuple[dict[str, Any], str]:
     """Construct a complete, tamper-evident evidence manifest for a verified discovery.
 
@@ -219,6 +238,9 @@ def build_evidence_manifest(
         blockchain_info: Optional on-chain anchor details (network, chain_id, contract).
         confidence_data: Multi-signal dynamic confidence breakdown.
         consensus_data: Identity consensus and multi-source agreement metrics.
+        matched_face_id: Specific identifier of matching candidate face in group photos (e.g. 'FACE 02').
+        candidate_faces_evaluated: List of all evaluated faces in candidate image with scores.
+        search_telemetry: Dictionary containing deep search pages, results, and platform metrics.
 
     Returns:
         Tuple of (manifest_dict, canonical_sha256_hex).
@@ -243,6 +265,46 @@ def build_evidence_manifest(
             platform_diversity=consensus_data.get("platform_count", 1) if consensus_data else 1,
         )
 
+    search_info: dict[str, Any] = {
+        "provider": "SerpApi",
+        "engine": "google_lens",
+        "query_image_cid": query_image_cid,
+        "discovery_timestamp": ts,
+        "total_candidates_discovered": int(total_candidates),
+        "usable_images_evaluated": int(usable_images_count),
+    }
+    if search_telemetry:
+        search_info["pages_scanned"] = int(search_telemetry.get("pages_scanned", 1))
+        search_info["platforms_discovered"] = search_telemetry.get("platforms_discovered", [])
+
+    verification_info: dict[str, Any] = {
+        "face_similarity_score": round(float(similarity_score), 4),
+        "identity_confidence": confidence_data.get("confidence_score", round(float(similarity_score), 4)),
+        "confidence_breakdown": confidence_data.get("breakdown"),
+        "verified_threshold": round(float(verified_threshold), 4),
+        "review_threshold": round(float(review_threshold), 4),
+        "decision": decision,
+        "decision_reason": decision_reason,
+        "face_detection_confidence": round(float(candidate_det_confidence), 4),
+        "candidate_face_count": int(candidate_face_count),
+        "matched_candidate_face_id": matched_face_id or ("FACE 01" if candidate_face_count >= 1 else "NONE"),
+        "candidate_image_quality": round(float(candidate_image_quality), 4) if candidate_image_quality is not None else None,
+        "separation_margin": round(float(separation_margin), 4) if separation_margin is not None else None,
+        "margin_interpretation": margin_interpretation,
+        "consensus_metrics": consensus_data,
+    }
+    if candidate_faces_evaluated:
+        verification_info["candidate_faces_breakdown"] = [
+            {
+                "face_id": str(cf.get("face_id", f"FACE {idx+1:02d}")),
+                "similarity": round(float(cf.get("similarity", 0.0)), 4),
+                "quality": round(float(cf.get("quality", 0.0)), 4),
+                "decision": str(cf.get("decision", "REJECTED")),
+                "is_matched": bool(cf.get("is_matched", False)),
+            }
+            for idx, cf in enumerate(candidate_faces_evaluated)
+        ]
+
     manifest_payload: dict[str, Any] = {
         "schema_version": "1.2.0",
         "record_timestamp": ts,
@@ -256,14 +318,7 @@ def build_evidence_manifest(
             "selected_face_index": int(selected_face_index),
             "query_image_quality": round(float(query_image_quality), 4) if query_image_quality is not None else None,
         },
-        "search": {
-            "provider": "SerpApi",
-            "engine": "google_lens",
-            "query_image_cid": query_image_cid,
-            "discovery_timestamp": ts,
-            "total_candidates_discovered": int(total_candidates),
-            "usable_images_evaluated": int(usable_images_count),
-        },
+        "search": search_info,
         "candidate": {
             "source_url": source_url,
             "source_title": source_title,
@@ -273,21 +328,7 @@ def build_evidence_manifest(
             "thumbnail_url": thumbnail_url,
             "thumbnail_sha256": thumbnail_sha256,
         },
-        "verification": {
-            "face_similarity_score": round(float(similarity_score), 4),
-            "identity_confidence": confidence_data.get("confidence_score", round(float(similarity_score), 4)),
-            "confidence_breakdown": confidence_data.get("breakdown"),
-            "verified_threshold": round(float(verified_threshold), 4),
-            "review_threshold": round(float(review_threshold), 4),
-            "decision": decision,
-            "decision_reason": decision_reason,
-            "face_detection_confidence": round(float(candidate_det_confidence), 4),
-            "candidate_face_count": int(candidate_face_count),
-            "candidate_image_quality": round(float(candidate_image_quality), 4) if candidate_image_quality is not None else None,
-            "separation_margin": round(float(separation_margin), 4) if separation_margin is not None else None,
-            "margin_interpretation": margin_interpretation,
-            "consensus_metrics": consensus_data,
-        },
+        "verification": verification_info,
         "integrity": {
             "canonicalization_method": "RFC-8785 canonical JSON (sorted keys, compact separators, UTF-8)",
         },

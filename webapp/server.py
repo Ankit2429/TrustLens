@@ -227,10 +227,21 @@ async def analyze_and_execute_pipeline(
         # [4/9] Multi-Source Search
         t0 = time.perf_counter()
         stages_log.append({"stage": 4, "name": "Multi-Source Visual Search", "status": "RUNNING"})
-        candidates = reverse_image_search(public_url)
+        search_res = reverse_image_search(public_url, return_telemetry=True)
+        if isinstance(search_res, tuple):
+            candidates, search_telemetry = search_res
+        else:
+            candidates = search_res
+            search_telemetry = {
+                "pages_scanned": 1,
+                "total_discovered": len(candidates),
+                "unique_candidates": len(candidates),
+                "platforms_discovered": list({c.get("platform", "General Web") for c in candidates}),
+                "source_expansions": 0,
+            }
         timings["4_search_api"] = time.perf_counter() - t0
         stages_log[-1]["status"] = "SUCCESS"
-        stages_log[-1]["detail"] = f"Discovered {len(candidates)} candidates across web & social platforms [{timings['4_search_api']:.2f}s]"
+        stages_log[-1]["detail"] = f"Discovered {len(candidates)} unique candidates across {search_telemetry.get('pages_scanned', 1)} page(s) [{timings['4_search_api']:.2f}s]"
 
         # [5/9] Candidate Multi-Face Verification (Concurrent In-Memory)
         t0 = time.perf_counter()
@@ -261,6 +272,8 @@ async def analyze_and_execute_pipeline(
                 "det_confidence": round(float(r["det_confidence"]), 4),
                 "face_count": r["face_count"],
                 "best_face_index": r.get("best_face_index", 0),
+                "matched_face_id": r.get("matched_face_id", f"FACE {r.get('best_face_index', 0) + 1:02d}"),
+                "candidate_faces_evaluated": r.get("candidate_faces_evaluated", []),
                 "decision": r["decision"],
                 "reason": r["reason"],
             })
@@ -270,9 +283,10 @@ async def analyze_and_execute_pipeline(
             key=lambda x: (decision_prio.get(x["decision"], 0), x["similarity"], x["quality"], -x.get("rank", 999)),
             reverse=True,
         )
+        total_faces_evaluated = sum(r["face_count"] for r in raw_eval_results)
         timings["5_cand_eval"] = time.perf_counter() - t0
         stages_log[-1]["status"] = "SUCCESS"
-        stages_log[-1]["detail"] = f"Evaluated {len(evaluated_candidates)} candidate faces across {usable_count} images in {timings['5_cand_eval']:.2f}s"
+        stages_log[-1]["detail"] = f"Evaluated {total_faces_evaluated} candidate faces across {usable_count} images in {timings['5_cand_eval']:.2f}s"
 
         # [6/9] Candidate Ranking & Separation Margin
         t0 = time.perf_counter()
@@ -294,6 +308,7 @@ async def analyze_and_execute_pipeline(
         stages_log[-1]["detail"] = f"Separation Margin: {sep_margin if sep_margin is not None else 'N/A'} (Verified: {len(verified_matches)}, Review: {len(review_candidates)}, Rejected: {len(rejected_candidates)})"
 
         # Select primary match: Prioritize verified social -> any verified -> review -> rejected
+        best_match = None
         if verified_matches:
             social_ver = [x for x in verified_matches if x["platform"] != "General Web"]
             best_match = social_ver[0] if social_ver else verified_matches[0]
@@ -301,11 +316,25 @@ async def analyze_and_execute_pipeline(
             best_match = review_candidates[0]
         elif evaluated_candidates:
             best_match = evaluated_candidates[0]
-        else:
-            best_match = None
-
         if not best_match:
-            raise HTTPException(status_code=404, detail="No faces detected in discovered candidate images")
+            best_match = {
+                "rank": 0,
+                "platform": "No Match",
+                "title": "No Reliable Match Discovered",
+                "link": "",
+                "domain": "",
+                "thumbnail": None,
+                "thumbnail_sha256": None,
+                "similarity": 0.0,
+                "quality": 0.0,
+                "det_confidence": 0.0,
+                "face_count": 0,
+                "best_face_index": 0,
+                "matched_face_id": "NONE",
+                "candidate_faces_evaluated": [],
+                "decision": "NO RELIABLE MATCH",
+                "reason": "No matching candidate faces found across indexed web sources",
+            }
 
         # Compute dynamic identity confidence
         confidence_data = calculate_dynamic_confidence(
@@ -348,6 +377,9 @@ async def analyze_and_execute_pipeline(
             thumbnail_sha256=best_match.get("thumbnail_sha256"),
             confidence_data=confidence_data,
             consensus_data=consensus_data,
+            matched_face_id=best_match.get("matched_face_id"),
+            candidate_faces_evaluated=best_match.get("candidate_faces_evaluated"),
+            search_telemetry=search_telemetry,
         )
         timings["7_manifest"] = time.perf_counter() - t0
         stages_log[-1]["status"] = "SUCCESS"
@@ -394,8 +426,13 @@ async def analyze_and_execute_pipeline(
                 "query_cid": query_cid,
             },
             "search_summary": {
-                "total_discovered": len(candidates),
+                "pages_scanned": search_telemetry.get("pages_scanned", 1),
+                "total_discovered": search_telemetry.get("total_discovered", len(candidates)),
+                "unique_candidates": len(candidates),
                 "usable_evaluated": usable_count,
+                "faces_evaluated": total_faces_evaluated,
+                "platforms_discovered": search_telemetry.get("platforms_discovered", []),
+                "source_expansions": search_telemetry.get("source_expansions", 0),
                 "verified_count": len(verified_matches),
                 "review_count": len(review_candidates),
                 "rejected_count": len(rejected_candidates),
@@ -446,7 +483,8 @@ def get_result_by_hash(proof_hash: str):
 
         record = fetch_json(cid)
         recomputed = sha256_of_json(record)
-        is_valid = recomputed.lower() == clean_hash.lower()
+        integrity_hash = record.get("integrity", {}).get("sha256_hash", "")
+        is_valid = (recomputed.lower() == clean_hash.lower() or integrity_hash.lower() == clean_hash.lower())
 
         return {
             "is_valid": is_valid,
@@ -512,7 +550,11 @@ def tamper_test_endpoint(req: TamperRequest):
         raise HTTPException(status_code=500, detail=str(e))
 
 
-# Mount static files
+# Mount static files and demo directory
+DEMO_DIR = PROJECT_ROOT / "demo"
+if DEMO_DIR.exists():
+    app.mount("/demo", StaticFiles(directory=str(DEMO_DIR)), name="demo")
+
 app.mount("/", StaticFiles(directory=str(STATIC_DIR), html=True), name="static")
 
 

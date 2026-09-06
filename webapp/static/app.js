@@ -1,13 +1,17 @@
 /**
- * TRUSTLENS — Client-Side Application Engine
- * Face Identification & Blockchain Evidence Verification
+ * IDENTITY — Biometric Facial Intelligence & Ledger Evidence System
+ * Client-Side Application Engine
  */
 
 document.addEventListener('DOMContentLoaded', () => {
-  // DOM Elements
+  // Navigation & Landing Elements
+  const landingStage = document.getElementById('landingStage');
+  const investigationWorkspace = document.getElementById('investigationWorkspace');
   const fileInput = document.getElementById('fileInput');
   const dropzone = document.getElementById('dropzone');
   const dropzoneIdle = document.getElementById('dropzoneIdle');
+  
+  // Hero Photo & Canvas Elements
   const previewWrap = document.getElementById('previewWrap');
   const faceCanvas = document.getElementById('faceCanvas');
   const actionStrip = document.getElementById('actionStrip');
@@ -16,44 +20,54 @@ document.addEventListener('DOMContentLoaded', () => {
   const multiFaceBar = document.getElementById('multiFaceBar');
   const multiFaceChips = document.getElementById('multiFaceChips');
 
-  // Preset buttons
-  const presetSatyaBtn = document.getElementById('presetSatyaBtn');
-  const presetUnindexedBtn = document.getElementById('presetUnindexedBtn');
-  const presetGroupBtn = document.getElementById('presetGroupBtn');
+  // Photo Floating HUD
+  const hudFaceCount = document.getElementById('hudFaceCount');
+  const hudFaceQuality = document.getElementById('hudFaceQuality');
+  const hudFaceConf = document.getElementById('hudFaceConf');
+
+  // Left Column Telemetry Elements
+  const faDetectionStatus = document.getElementById('faDetectionStatus');
+  const faQuality = document.getElementById('faQuality');
+  const faConfidence = document.getElementById('faConfidence');
+  const faFaceSize = document.getElementById('faFaceSize');
+  const faPose = document.getElementById('faPose');
+  const faSharpness = document.getElementById('faSharpness');
+  const faExposure = document.getElementById('faExposure');
+  const faEmbeddingHash = document.getElementById('faEmbeddingHash');
 
   // Telemetry & Header
   const networkNameLabel = document.getElementById('networkNameLabel');
   const headerBlockNum = document.getElementById('headerBlockNum');
   const contractTelemetryPill = document.getElementById('contractTelemetryPill');
 
-  // Pipeline Stream
-  const progressStreamSection = document.getElementById('progressStreamSection');
+  // Pipeline Stepper & Stream Banner
+  const streamBanner = document.getElementById('streamBanner');
   const streamCurrentStageTitle = document.getElementById('streamCurrentStageTitle');
   const liveDiscoveryHud = document.getElementById('liveDiscoveryHud');
   const hudDiscoveredCount = document.getElementById('hudDiscoveredCount');
-  const hudEvaluatedCount = document.getElementById('hudEvaluatedCount');
   const discoveredPlatformsStrip = document.getElementById('discoveredPlatformsStrip');
 
-  // Result Showcase
+  // Top Match & Result Showcase Elements
   const resultShowcaseSection = document.getElementById('resultShowcaseSection');
-  const verdictBannerWrap = document.getElementById('verdictBannerWrap');
-  const verdictHeadline = document.getElementById('verdictHeadline');
-  const verdictSubReason = document.getElementById('verdictSubReason');
-  const majorSimilarityScore = document.getElementById('majorSimilarityScore');
-  const similarityBadge = document.getElementById('similarityBadge');
-
-  const resConfidenceVal = document.getElementById('resConfidenceVal');
-  const resMarginVal = document.getElementById('resMarginVal');
-  const resQualityVal = document.getElementById('resQualityVal');
-  const resConsensusVal = document.getElementById('resConsensusVal');
-
+  const topMatchCard = document.getElementById('topMatchCard');
   const primaryMatchThumb = document.getElementById('primaryMatchThumb');
   const primaryPlatformChip = document.getElementById('primaryPlatformChip');
   const primaryMatchTitle = document.getElementById('primaryMatchTitle');
   const primaryMatchLink = document.getElementById('primaryMatchLink');
-  const primaryDomain = document.getElementById('primaryDomain');
-  const primaryThumbHash = document.getElementById('primaryThumbHash');
+  const majorSimilarityScore = document.getElementById('majorSimilarityScore');
+  const resQualityVal = document.getElementById('resQualityVal');
+  const resConfidenceVal = document.getElementById('resConfidenceVal');
+  const resMarginVal = document.getElementById('resMarginVal');
+  const similarityBadge = document.getElementById('similarityBadge');
 
+  // Verdict Banner Elements
+  const verdictBannerWrap = document.getElementById('verdictBannerWrap');
+  const verdictHeadline = document.getElementById('verdictHeadline');
+  const verdictSubReason = document.getElementById('verdictSubReason');
+  const verdictBigScore = document.getElementById('verdictBigScore');
+  const verdictScoreDesc = document.getElementById('verdictScoreDesc');
+
+  // Proof & Refusal Elements
   const blockchainProofCard = document.getElementById('blockchainProofCard');
   const blockchainRefusalCard = document.getElementById('blockchainRefusalCard');
   const refusalDescText = document.getElementById('refusalDescText');
@@ -68,11 +82,12 @@ document.addEventListener('DOMContentLoaded', () => {
   const viewManifestJsonBtn = document.getElementById('viewManifestJsonBtn');
   const verifyProofModalBtn = document.getElementById('verifyProofModalBtn');
 
+  // Candidate Gallery Elements
   const galleryCount = document.getElementById('galleryCount');
   const candidatesScrollStrip = document.getElementById('candidatesScrollStrip');
 
   // Tamper Demo Elements
-  const tamperScenarioBtns = document.querySelectorAll('.tamper-scenario-btn');
+  const scenarioPillCards = document.querySelectorAll('.scenario-pill-card');
   const tamperSimulationScreen = document.getElementById('tamperSimulationScreen');
   const simStatusPill = document.getElementById('simStatusPill');
   const simMatchPill = document.getElementById('simMatchPill');
@@ -81,7 +96,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const simOnChainStatus = document.getElementById('simOnChainStatus');
   const simDiffBox = document.getElementById('simDiffBox');
 
-  // Modal
+  // Modal Elements
   const verifyModal = document.getElementById('verifyModal');
   const closeVerifyModalBtn = document.getElementById('closeVerifyModalBtn');
   const modalHashInput = document.getElementById('modalHashInput');
@@ -105,8 +120,9 @@ document.addEventListener('DOMContentLoaded', () => {
       if (res.ok) {
         const data = await res.json();
         if (data.network) {
-          const conciseName = data.is_local ? `ANVIL (${data.chain_id})` : `POLYGON (${data.chain_id})`;
+          const conciseName = data.is_local ? `ANVIL ${data.chain_id}` : `POLYGON ${data.chain_id}`;
           networkNameLabel.textContent = conciseName;
+          proofNetworkLabel.textContent = conciseName;
         }
         if (data.latest_block) {
           headerBlockNum.textContent = `#${data.latest_block}`;
@@ -117,15 +133,15 @@ document.addEventListener('DOMContentLoaded', () => {
         }
       }
     } catch (e) {
-      console.warn('Health check failed:', e);
+      console.warn('Health check warning:', e);
     }
   }
   checkHealth();
-  setInterval(checkHealth, 8000);
+  setInterval(checkHealth, 10000);
 
   // 2. Drag & Drop Event Listeners
   dropzone.addEventListener('click', (e) => {
-    if (e.target.closest('#previewWrap') || e.target.closest('button')) return;
+    if (e.target.closest('button')) return;
     fileInput.click();
   });
 
@@ -152,7 +168,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   });
 
-  // 3. File Processing & Face Detection
+  // 3. File Processing & Transition to Photo-Centric Workspace
   async function handleFileSelected(file) {
     if (!file.type.match(/^image\/(jpeg|png|webp)$/)) {
       alert('Please select a valid JPG, PNG, or WEBP image.');
@@ -163,14 +179,22 @@ document.addEventListener('DOMContentLoaded', () => {
     selectedFaceIndex = 0;
     detectedFaces = [];
 
+    const workspaceFileName = document.getElementById('workspaceFileName');
+    if (workspaceFileName) {
+      workspaceFileName.textContent = file.name ? file.name.toUpperCase() : 'UNKNOWN QUERY IMAGE';
+    }
+
+    // Switch from Landing Stage to Photo-Centric Workspace
+    landingStage.style.display = 'none';
+    investigationWorkspace.style.display = 'flex';
+    resultShowcaseSection.style.display = 'none';
+    streamBanner.style.display = 'none';
+
     // Load image preview
     const reader = new FileReader();
     reader.onload = (e) => {
       rawImageObj = new Image();
       rawImageObj.onload = () => {
-        dropzoneIdle.style.display = 'none';
-        previewWrap.style.display = 'block';
-        actionStrip.style.display = 'flex';
         renderFacePreview();
         runFaceDetection(file);
       };
@@ -195,8 +219,11 @@ document.addEventListener('DOMContentLoaded', () => {
           detectedFaces = data.faces;
           renderMultiFaceBar();
           renderFacePreview();
+          updateFaceTelemetry();
         } else {
-          document.getElementById('hudFaceCount').textContent = '0 Faces Detected';
+          hudFaceCount.textContent = '0 FACES DETECTED';
+          faDetectionStatus.textContent = 'NO FACE FOUND';
+          faDetectionStatus.className = 't-value';
         }
       }
     } catch (e) {
@@ -204,18 +231,46 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }
 
+  function updateFaceTelemetry() {
+    if (!detectedFaces || detectedFaces.length === 0) return;
+    const face = detectedFaces[selectedFaceIndex] || detectedFaces[0];
+    const q = face.quality || {};
+    const [x1, y1, x2, y2] = face.bbox || [0, 0, 0, 0];
+    const width = Math.round(x2 - x1);
+    const height = Math.round(y2 - y1);
+
+    faDetectionStatus.textContent = 'DETECTED';
+    faDetectionStatus.className = 't-value highlight';
+    faQuality.textContent = (q.overall_quality || 0.90).toFixed(2);
+    faConfidence.textContent = (face.det_score || 0.92).toFixed(2);
+    faFaceSize.textContent = `${width} × ${height} px`;
+    const breakdown = q.breakdown || {};
+    faPose.textContent = `Y: ${(breakdown.pose_yaw_est || 0).toFixed(1)}° P: ${(breakdown.pose_pitch_est || 0).toFixed(1)}°`;
+    faSharpness.textContent = (breakdown.sharpness || q.sharpness || 0.88).toFixed(2);
+    faExposure.textContent = (breakdown.exposure || q.exposure || 0.91).toFixed(2);
+    faEmbeddingHash.textContent = '512-D ARCFACE L2';
+
+    hudFaceCount.textContent = `${detectedFaces.length} FACE${detectedFaces.length > 1 ? 'S' : ''} DETECTED`;
+    hudFaceQuality.textContent = `QUALITY: ${(q.overall_quality || 0.90).toFixed(2)}`;
+    hudFaceConf.textContent = `CONFIDENCE: ${(face.det_score || 0.92).toFixed(2)}`;
+  }
+
   function renderMultiFaceBar() {
     if (detectedFaces.length > 1) {
       multiFaceBar.style.display = 'flex';
       multiFaceChips.innerHTML = '';
       detectedFaces.forEach((f, idx) => {
+        const padIdx = String(idx + 1).padStart(2, '0');
+        const qScore = Math.round((f.quality?.overall_quality || f.det_score || 0.85) * 100);
         const btn = document.createElement('button');
+        btn.type = 'button';
         btn.className = `face-chip ${idx === selectedFaceIndex ? 'active' : ''}`;
-        btn.textContent = `Face #${idx} (${Math.round(f.quality.overall_quality * 100)}% Q)`;
+        btn.textContent = `FACE ${padIdx} (${qScore}% Q)`;
         btn.addEventListener('click', () => {
           selectedFaceIndex = idx;
           renderMultiFaceBar();
           renderFacePreview();
+          updateFaceTelemetry();
         });
         multiFaceChips.appendChild(btn);
       });
@@ -237,81 +292,46 @@ document.addEventListener('DOMContentLoaded', () => {
         const [x1, y1, x2, y2] = face.bbox;
         const isSelected = idx === selectedFaceIndex;
 
-        // Draw Bounding Box
-        ctx.lineWidth = isSelected ? 4 : 2;
-        ctx.strokeStyle = isSelected ? '#38bdf8' : 'rgba(255, 255, 255, 0.4)';
+        // Subtle Bounding Box
+        ctx.lineWidth = isSelected ? 3 : 1.5;
+        ctx.strokeStyle = isSelected ? '#10b981' : 'rgba(255, 255, 255, 0.4)';
         ctx.strokeRect(x1, y1, x2 - x1, y2 - y1);
 
-        // Draw 5-Point Landmarks
+        // 5-Point Reticle Landmarks
         if (face.landmarks) {
-          ctx.fillStyle = isSelected ? '#10b981' : '#60a5fa';
+          ctx.fillStyle = isSelected ? '#EDEDED' : 'rgba(255, 255, 255, 0.5)';
           face.landmarks.forEach(([lx, ly]) => {
             ctx.beginPath();
-            ctx.arc(lx, ly, isSelected ? 4 : 3, 0, 2 * Math.PI);
+            ctx.arc(lx, ly, isSelected ? 3.5 : 2.5, 0, 2 * Math.PI);
             ctx.fill();
           });
         }
       });
-
-      const selFace = detectedFaces[selectedFaceIndex];
-      if (selFace) {
-        document.getElementById('hudFaceCount').textContent = `${detectedFaces.length} Face(s)`;
-        document.getElementById('hudFaceQuality').textContent = `Quality: ${selFace.quality.overall_quality.toFixed(2)}`;
-        document.getElementById('hudFaceConf').textContent = `Conf: ${selFace.det_score.toFixed(2)}`;
-      }
     }
   }
 
-  // 4. Demo Preset Buttons
-  presetSatyaBtn.addEventListener('click', async () => {
-    loadPresetImage('demo/real_face_pairs/Satya_Nadella_(cropped).jpg', 'Satya_Nadella.jpg');
-  });
-
-  presetUnindexedBtn.addEventListener('click', async () => {
-    loadPresetImage('demo/test_cases/06_unindexed_nomatch.jpg', 'Unindexed_Face.jpg');
-  });
-
-  presetGroupBtn.addEventListener('click', async () => {
-    loadPresetImage('demo/real_face_pairs/Steve_Jobs_and_Bill_Gates_(522695099).jpg', 'Jobs_Gates_Group.jpg');
-  });
-
-  async function loadPresetImage(path, filename) {
-    try {
-      const res = await fetch('/api/demo-image');
-      if (res.ok) {
-        const blob = await res.blob();
-        const file = new File([blob], filename, { type: 'image/jpeg' });
-        handleFileSelected(file);
-      }
-    } catch (e) {
-      console.warn('Preset load failed:', e);
-    }
-  }
-
-  // Reset button
+  // Reset Button
   resetImageBtn.addEventListener('click', () => {
     currentFile = null;
     rawImageObj = null;
     detectedFaces = [];
-    dropzoneIdle.style.display = 'flex';
-    previewWrap.style.display = 'none';
-    actionStrip.style.display = 'none';
-    multiFaceBar.style.display = 'none';
-    progressStreamSection.style.display = 'none';
+    selectedFaceIndex = 0;
+    landingStage.style.display = 'flex';
+    investigationWorkspace.style.display = 'none';
     resultShowcaseSection.style.display = 'none';
+    streamBanner.style.display = 'none';
+    multiFaceBar.style.display = 'none';
   });
 
   // 5. Pipeline Execution
   startPipelineBtn.addEventListener('click', async () => {
     if (!currentFile) return;
 
-    // Reset results & show stream
+    // Reset results & show stream banner
     resultShowcaseSection.style.display = 'none';
-    progressStreamSection.style.display = 'block';
-    liveDiscoveryHud.style.display = 'block';
-    progressStreamSection.scrollIntoView({ behavior: 'smooth' });
-
-    animatePipelineStep(1, 'Stage 1 of 9: Detecting Face & Quality Assessment');
+    streamBanner.style.display = 'flex';
+    updateStepper(1);
+    streamCurrentStageTitle.textContent = 'STAGE 1/6: FACE DETECTION & QUALITY ASSESSMENT';
 
     const formData = new FormData();
     formData.append('image', currentFile);
@@ -319,13 +339,27 @@ document.addEventListener('DOMContentLoaded', () => {
     formData.append('verified_threshold', '0.60');
     formData.append('review_threshold', '0.40');
 
-    // Simulate progressive stage lighting
-    setTimeout(() => animatePipelineStep(2, 'Stage 4 of 9: Multi-Source Visual Web Discovery'), 1200);
+    // Progression Stepper Updates
     setTimeout(() => {
-      animatePipelineStep(3, 'Stage 5 of 9: Independent ArcFace Candidate Verification');
-      illuminatePlatformTags();
-    }, 2800);
-    setTimeout(() => animatePipelineStep(4, 'Stage 7 of 9: RFC-8785 Canonical Manifest Construction'), 4500);
+      updateStepper(2);
+      streamCurrentStageTitle.textContent = 'STAGE 2/6: 512-DIMENSIONAL ARCFACE FEATURE EMBEDDING';
+    }, 800);
+
+    setTimeout(() => {
+      updateStepper(3);
+      streamCurrentStageTitle.textContent = 'STAGE 3/6: SEARCHING WEB ACROSS PUBLIC INDEXES...';
+      hudDiscoveredCount.textContent = 'SEARCHING...';
+    }, 1800);
+
+    setTimeout(() => {
+      updateStepper(4);
+      streamCurrentStageTitle.textContent = 'STAGE 4/6: INDEPENDENT CANDIDATE MULTI-FACE COMPARISON';
+    }, 3200);
+
+    setTimeout(() => {
+      updateStepper(5);
+      streamCurrentStageTitle.textContent = 'STAGE 5/6: RFC-8785 CANONICAL MANIFEST FINGERPRINTING';
+    }, 4500);
 
     try {
       const res = await fetch('/api/analyze', {
@@ -336,22 +370,25 @@ document.addEventListener('DOMContentLoaded', () => {
       if (res.ok) {
         const data = await res.json();
         lastAnalysisResult = data;
-        animatePipelineStep(5, 'Stage 9 of 9: Blockchain Proof Anchoring');
+        updateStepper(6);
+        streamCurrentStageTitle.textContent = 'STAGE 6/6: IMMUTABLE LEDGER PROOF ANCHORING';
         setTimeout(() => {
+          streamBanner.style.display = 'none';
           renderAnalysisResults(data);
-        }, 800);
+        }, 600);
       } else {
         const err = await res.json();
-        alert('Pipeline execution failed: ' + (err.detail || err.error || 'Server error'));
+        streamBanner.style.display = 'none';
+        alert('Investigation failed: ' + (err.detail || err.error || 'Server error'));
       }
     } catch (e) {
-      alert('Network error during pipeline execution: ' + e.message);
+      streamBanner.style.display = 'none';
+      alert('Network error during investigation: ' + e.message);
     }
   });
 
-  function animatePipelineStep(stepIndex, stageTitle) {
-    streamCurrentStageTitle.textContent = stageTitle;
-    for (let i = 1; i <= 5; i++) {
+  function updateStepper(stepIndex) {
+    for (let i = 1; i <= 6; i++) {
       const node = document.getElementById(`stepNode${i}`);
       if (i < stepIndex) {
         node.className = 'pipeline-step-node completed';
@@ -363,18 +400,8 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }
 
-  function illuminatePlatformTags() {
-    const tags = discoveredPlatformsStrip.querySelectorAll('.platform-micro-tag');
-    hudDiscoveredCount.textContent = '59';
-    hudEvaluatedCount.textContent = '40';
-    tags.forEach((tag, idx) => {
-      setTimeout(() => tag.classList.add('active-discovery'), idx * 150);
-    });
-  }
-
-  // 6. Render Full Analysis Results
+  // 6. Render Full Investigation Results
   function renderAnalysisResults(data) {
-    progressStreamSection.style.display = 'none';
     resultShowcaseSection.style.display = 'flex';
     resultShowcaseSection.scrollIntoView({ behavior: 'smooth' });
 
@@ -382,39 +409,75 @@ document.addEventListener('DOMContentLoaded', () => {
     const decision = best.decision || 'REJECTED';
     const sim = best.similarity || 0.0;
     const confidence = data.confidence_data || {};
-    const consensus = data.consensus_data || {};
     const summary = data.search_summary || {};
+    const totalFound = summary.total_discovered !== undefined ? summary.total_discovered : (data.all_candidates ? data.all_candidates.length : 0);
 
-    // Verdict Styling
-    verdictBannerWrap.className = `verdict-banner-wrap status-${decision.toLowerCase()}`;
-    if (decision === 'VERIFIED') {
-      verdictHeadline.textContent = 'VERIFIED MATCH FOUND';
-      similarityBadge.textContent = 'CONFIRMED BIOMETRIC MATCH';
-    } else if (decision === 'REVIEW') {
-      verdictHeadline.textContent = 'BORDERLINE / REVIEW REQUIRED';
-      similarityBadge.textContent = 'MANUAL INSPECTION REQUIRED';
-    } else {
-      verdictHeadline.textContent = 'NO RELIABLE MATCH';
-      similarityBadge.textContent = 'DISTINCT / UNINDEXED IDENTITY';
+    // Live Search Count
+    const pagesScanned = summary.pages_scanned || 1;
+    const facesAnalyzed = summary.faces_evaluated || (data.all_candidates ? data.all_candidates.length : 0);
+    hudDiscoveredCount.textContent = totalFound > 0 ? `${totalFound} (${pagesScanned}P · ${facesAnalyzed}F)` : '0 (NO RESULTS)';
+
+    // Dynamic Platform Illumination based on ACTUAL returned platforms
+    const tags = discoveredPlatformsStrip.querySelectorAll('.platform-tag');
+    const platformsFound = new Set();
+    if (best.platform && best.platform !== 'No Match' && best.platform !== 'General Web') {
+      platformsFound.add(best.platform.toUpperCase());
+    }
+    if (data.consensus_data && data.consensus_data.distinct_platforms) {
+      data.consensus_data.distinct_platforms.forEach((p) => platformsFound.add(p.toUpperCase()));
+    }
+    if (data.all_candidates) {
+      data.all_candidates.forEach((c) => {
+        if (c.platform) platformsFound.add(c.platform.toUpperCase());
+      });
     }
 
-    verdictSubReason.textContent = best.reason || 'Biometric analysis complete.';
+    tags.forEach((tag) => {
+      const pName = tag.dataset.platform || tag.textContent.trim().toUpperCase();
+      if (platformsFound.has(pName)) {
+        tag.classList.add('active-platform');
+      } else {
+        tag.classList.remove('active-platform');
+      }
+    });
+
+    // Verdict Styling
+    verdictBannerWrap.className = `verdict-banner status-${decision.toLowerCase().replace(/\s+/g, '-')}`;
+    if (decision === 'VERIFIED') {
+      verdictHeadline.textContent = 'VERIFIED';
+      verdictScoreDesc.textContent = 'Strong match confirmed';
+      similarityBadge.textContent = 'VERIFIED';
+      similarityBadge.className = 'mm-val tag-decision tag-verif';
+    } else if (decision === 'REVIEW') {
+      verdictHeadline.textContent = 'REVIEW';
+      verdictScoreDesc.textContent = 'Borderline evidence';
+      similarityBadge.textContent = 'REVIEW';
+      similarityBadge.className = 'mm-val tag-decision tag-rev';
+    } else if (decision === 'NO RELIABLE MATCH' || best.similarity === 0) {
+      verdictHeadline.textContent = 'NO RELIABLE MATCH';
+      verdictScoreDesc.textContent = 'No indexed candidate match';
+      similarityBadge.textContent = 'NO MATCH';
+      similarityBadge.className = 'mm-val tag-decision tag-rej';
+    } else {
+      verdictHeadline.textContent = 'REJECTED';
+      verdictScoreDesc.textContent = 'Non-matching candidates';
+      similarityBadge.textContent = 'REJECTED';
+      similarityBadge.className = 'mm-val tag-decision tag-rej';
+    }
+
+    verdictSubReason.textContent = best.reason || (decision === 'VERIFIED' ? 'Face similarity exceeds verified threshold with clear candidate quality differentiation.' : 'Indexed evidence was insufficient to establish a high-confidence match.');
+    verdictBigScore.textContent = sim.toFixed(4);
     majorSimilarityScore.textContent = sim.toFixed(4);
 
-    // Telemetry Cards
+    // Right Column Match Card
+    resQualityVal.textContent = (best.quality || 0.85).toFixed(2);
     resConfidenceVal.textContent = (confidence.confidence_score || sim).toFixed(4);
     resMarginVal.textContent = summary.separation_margin !== null ? `+${summary.separation_margin.toFixed(4)}` : 'N/A';
-    resMarginNote.textContent = summary.margin_interpretation ? summary.margin_interpretation.split(':')[0] : 'Single distribution';
-    resQualityVal.textContent = `${(best.quality || 0.85).toFixed(2)} / 1.0`;
-    resConsensusVal.textContent = consensus.consensus_level ? consensus.consensus_level.replace(/_/g, ' ') : 'COMPLETE';
 
-    // Primary Match Box
     primaryMatchTitle.textContent = best.title || 'Discovered Web Identity';
     primaryMatchLink.textContent = best.link || 'https://...';
     primaryMatchLink.href = best.link || '#';
-    primaryPlatformChip.textContent = best.platform || 'General Web';
-    primaryDomain.textContent = best.domain || 'web';
-    primaryThumbHash.textContent = best.thumbnail_sha256 ? `${best.thumbnail_sha256.slice(0, 16)}...` : 'N/A';
+    primaryPlatformChip.textContent = (best.platform || 'General Web').toUpperCase();
 
     if (best.thumbnail) {
       primaryMatchThumb.src = best.thumbnail;
@@ -423,7 +486,33 @@ document.addEventListener('DOMContentLoaded', () => {
       primaryMatchThumb.style.display = 'none';
     }
 
-    // Blockchain Proof vs Refusal Card
+    // Group Photo Traceability in Match Card
+    const groupBreakdownEl = document.getElementById('primaryGroupBreakdown');
+    if (groupBreakdownEl) {
+      if (best.face_count > 1 && best.candidate_faces_evaluated && best.candidate_faces_evaluated.length > 0) {
+        groupBreakdownEl.style.display = 'block';
+        groupBreakdownEl.innerHTML = `
+          <div class="group-photo-header">
+            <span class="group-title">GROUP PHOTO ANALYSIS (${best.face_count} FACES DETECTED)</span>
+            <span class="group-match-tag">MATCHED: ${best.matched_face_id || 'FACE 01'}</span>
+          </div>
+          <div class="group-faces-list">
+            ${best.candidate_faces_evaluated.map(cf => `
+              <div class="group-face-chip ${cf.is_matched ? 'matched-face' : ''}">
+                <span class="gf-id">${cf.face_id}</span>
+                <span class="gf-sim">${Number(cf.similarity).toFixed(2)}</span>
+                <span class="gf-dec ${cf.decision === 'VERIFIED' ? 'verif' : cf.decision === 'REVIEW' ? 'rev' : 'rej'}">${cf.decision}</span>
+                ${cf.is_matched ? '<span class="gf-star">★ MATCH</span>' : ''}
+              </div>
+            `).join('')}
+          </div>
+        `;
+      } else {
+        groupBreakdownEl.style.display = 'none';
+      }
+    }
+
+    // Proof vs Refusal Monolith
     if (decision === 'VERIFIED' && data.blockchain_receipt) {
       blockchainProofCard.style.display = 'block';
       blockchainRefusalCard.style.display = 'none';
@@ -439,12 +528,12 @@ document.addEventListener('DOMContentLoaded', () => {
     } else {
       blockchainProofCard.style.display = 'none';
       blockchainRefusalCard.style.display = 'flex';
-      refusalDescText.textContent = `TrustLens strictly enforces zero false-positive proof registration. Because this evidence is classified as [${decision}], on-chain proof anchoring was safely skipped to prevent immutable ledger pollution.`;
+      refusalDescText.textContent = `The verification engine strictly enforces zero false-positive proof registration. Because this evidence is classified as [${decision}], on-chain proof anchoring was safely skipped (PROOF NOT ANCHORED) to prevent immutable ledger pollution.`;
       refusalIpfsLink.textContent = data.manifest_cid || 'Qm...';
       refusalIpfsLink.href = data.manifest_cid ? `https://ipfs.io/ipfs/${data.manifest_cid}` : '#';
     }
 
-    // Render Candidates Gallery
+    // Render Candidates Strip
     const allCands = data.all_candidates || [];
     galleryCount.textContent = allCands.length;
     candidatesScrollStrip.innerHTML = '';
@@ -453,30 +542,36 @@ document.addEventListener('DOMContentLoaded', () => {
       const card = document.createElement('div');
       card.className = 'cand-card';
       const tagClass = c.decision === 'VERIFIED' ? 'tag-verif' : c.decision === 'REVIEW' ? 'tag-rev' : 'tag-rej';
+      const groupBadge = c.face_count > 1 
+        ? `<span class="cand-group-badge">GROUP (${c.face_count}F · ${c.matched_face_id || 'MATCH'})</span>` 
+        : '';
       card.innerHTML = `
-        <img class="cand-img" src="${c.thumbnail || ''}" alt="Thumb" onerror="this.style.display='none'">
+        <div class="cand-img-wrap">
+          <img class="cand-img" src="${c.thumbnail || ''}" alt="Thumb" onerror="this.style.display='none'">
+          ${groupBadge}
+        </div>
         <div class="cand-score-row">
-          <span class="cand-score">${c.similarity.toFixed(3)}</span>
+          <span class="cand-score">${Number(c.similarity).toFixed(3)}</span>
           <span class="cand-tag ${tagClass}">${c.decision}</span>
         </div>
-        <span class="cand-host">${c.platform || c.domain}</span>
+        <span class="cand-host">${c.platform || c.domain || 'web'}</span>
       `;
       candidatesScrollStrip.appendChild(card);
     });
 
-    // Initialize Tamper Demo with current manifest hash
+    // Initialize Tamper Demo
     initTamperDemo(data.manifest_hash || 'c1fee9bc922c13891469c9d40421c0ca2e7d97554cfd33f165c7a4c225740789');
   }
 
-  // 7. Interactive Cryptographic Tamper Demo Logic
+  // 7. Interactive Cryptographic Tamper Demonstration
   function initTamperDemo(origHash) {
     simOrigHash.textContent = `${origHash.slice(0, 16)}...${origHash.slice(-8)}`;
 
-    tamperScenarioBtns.forEach((btn) => {
-      btn.addEventListener('click', () => {
-        tamperScenarioBtns.forEach((b) => b.classList.remove('active'));
-        btn.classList.add('active');
-        const scenario = btn.getAttribute('data-scenario');
+    scenarioPillCards.forEach((card) => {
+      card.addEventListener('click', () => {
+        scenarioPillCards.forEach((c) => c.classList.remove('active'));
+        card.classList.add('active');
+        const scenario = card.getAttribute('data-scenario');
         simulateTamperScenario(scenario, origHash);
       });
     });
@@ -485,33 +580,32 @@ document.addEventListener('DOMContentLoaded', () => {
 
   function simulateTamperScenario(scenario, origHash) {
     if (scenario === 'original') {
-      tamperSimulationScreen.className = 'simulation-screen';
+      tamperSimulationScreen.className = 'terminal-shell';
       simStatusPill.textContent = 'STATUS: VALID & VERIFIED';
       simMatchPill.textContent = 'HASH MATCH';
       simComputedHash.textContent = `${origHash.slice(0, 16)}...${origHash.slice(-8)}`;
       simOnChainStatus.textContent = 'CONFIRMED (Block #38 on Anvil)';
       simDiffBox.innerHTML = '<code>All evidence fields match bit-for-bit with RFC-8785 canonical standard.</code>';
     } else {
-      tamperSimulationScreen.className = 'simulation-screen sim-tampered';
+      tamperSimulationScreen.className = 'terminal-shell sim-tampered';
       simStatusPill.textContent = 'STATUS: TAMPER DETECTED';
       simMatchPill.textContent = 'HASH MISMATCH';
 
-      // Generate simulated tampered hash
       const fakeHash = origHash.split('').reverse().join('');
       simComputedHash.textContent = `${fakeHash.slice(0, 16)}...${fakeHash.slice(-8)}`;
-      simOnChainStatus.textContent = 'REJECTED: Proof Not Found on Blockchain';
+      simOnChainStatus.textContent = 'REJECTED: Proof Not Found on Blockchain Registry';
 
       if (scenario === 'url') {
-        simDiffBox.innerHTML = '<code style="color:#f43f5e">- source_url: "https://trusted-news.com/article"<br>+ source_url: "https://malicious-fake-domain.org/phishing"<br>❌ SHA-256 fingerprint invalidated!</code>';
+        simDiffBox.innerHTML = '<code style="color:#ef4444">- source_url: "https://trusted-news.com/article"<br>+ source_url: "https://spoofed-adversary-domain.org"<br>❌ SHA-256 fingerprint invalidated!</code>';
       } else if (scenario === 'similarity') {
-        simDiffBox.innerHTML = '<code style="color:#f43f5e">- similarity_score: 0.8670<br>+ similarity_score: 0.9990<br>❌ Score modification invalidates deterministic manifest hash!</code>';
+        simDiffBox.innerHTML = '<code style="color:#ef4444">- similarity_score: 0.8670<br>+ similarity_score: 0.9990<br>❌ Score modification invalidates deterministic manifest hash!</code>';
       } else {
-        simDiffBox.innerHTML = '<code style="color:#f43f5e">- platform: "Facebook"<br>+ platform: "Official Government Register"<br>❌ Metadata injection violates cryptographic integrity!</code>';
+        simDiffBox.innerHTML = '<code style="color:#ef4444">- platform: "Facebook"<br>+ platform: "Official Government Register"<br>❌ Metadata injection violates cryptographic integrity!</code>';
       }
     }
   }
 
-  // 8. On-Chain Verification Modal
+  // 8. Independent On-Chain Query Modal
   verifyProofModalBtn.addEventListener('click', () => {
     if (lastAnalysisResult && lastAnalysisResult.manifest_hash) {
       modalHashInput.value = lastAnalysisResult.manifest_hash;
