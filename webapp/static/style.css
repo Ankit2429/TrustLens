@@ -1638,6 +1638,170 @@ body.app-body {
   color: var(--text-secondary);
 }
 
+/* Conceptual Distinctions Bar (Requirement 9) */
+.discovery-concept-legend {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 14px;
+  background: var(--surface-1);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  margin-bottom: 12px;
+}
+
+.dcl-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-family: var(--font-mono);
+  font-size: 9px;
+  letter-spacing: 0.08em;
+  color: var(--text-secondary);
+}
+
+.dcl-badge {
+  font-weight: 700;
+  padding: 2px 6px;
+  border-radius: 2px;
+  letter-spacing: 0.1em;
+}
+
+.dcl-disc {
+  color: #38bdf8;
+  background: rgba(56, 189, 248, 0.12);
+  border: 1px solid rgba(56, 189, 248, 0.3);
+}
+
+.dcl-analy {
+  color: #a855f7;
+  background: rgba(168, 85, 247, 0.12);
+  border: 1px solid rgba(168, 85, 247, 0.3);
+}
+
+.dcl-verif {
+  color: var(--accent-verified);
+  background: var(--accent-verified-bg);
+  border: 1px solid var(--accent-verified-border);
+}
+
+.dcl-rev {
+  color: var(--accent-review);
+  background: var(--accent-review-bg);
+  border: 1px solid var(--accent-review-border);
+}
+
+.dcl-rej {
+  color: var(--accent-rejected);
+  background: var(--accent-rejected-bg);
+  border: 1px solid var(--accent-rejected-border);
+}
+
+.dcl-vis {
+  color: #eab308;
+  background: rgba(234, 179, 8, 0.1);
+  border: 1px solid rgba(234, 179, 8, 0.25);
+}
+
+.dcl-same {
+  color: #06b6d4;
+  background: rgba(6, 182, 212, 0.1);
+  border: 1px solid rgba(6, 182, 212, 0.25);
+}
+
+.btn-toggle-audit {
+  background: var(--surface-2);
+  border: 1px solid var(--border-medium);
+  color: var(--text-secondary);
+  font-family: var(--font-mono);
+  font-size: 9px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  padding: 5px 12px;
+  border-radius: var(--radius-full);
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.btn-toggle-audit:hover {
+  background: var(--surface-3);
+  color: var(--text-primary);
+  border-color: var(--border-focus);
+}
+
+.section-empty-notice {
+  padding: 24px;
+  background: var(--surface-1);
+  border: 1px dashed var(--border-subtle);
+  border-radius: var(--radius-sm);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  color: var(--text-muted);
+  text-align: center;
+}
+
+.relationship-legend-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 10px;
+  margin-bottom: 12px;
+}
+
+.legend-chip {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  letter-spacing: 0.08em;
+  padding: 3px 8px;
+  border-radius: 2px;
+  font-weight: 600;
+}
+
+.legend-chip.rel-same-img {
+  color: #06b6d4;
+  background: rgba(6, 182, 212, 0.1);
+  border: 1px solid rgba(6, 182, 212, 0.3);
+}
+
+.legend-chip.rel-same-person {
+  color: var(--accent-verified);
+  background: var(--accent-verified-bg);
+  border: 1px solid var(--accent-verified-border);
+}
+
+.legend-chip.rel-vis-rel {
+  color: #eab308;
+  background: rgba(234, 179, 8, 0.1);
+  border: 1px solid rgba(234, 179, 8, 0.3);
+}
+
+.legend-chip.rel-diff-person {
+  color: var(--text-muted);
+  background: var(--surface-3);
+  border: 1px solid var(--border-subtle);
+}
+
+.cand-cat-badge {
+  font-family: var(--font-mono);
+  font-size: 8px;
+  letter-spacing: 0.1em;
+  color: var(--accent-cyan);
+  background: rgba(56, 189, 248, 0.08);
+  border: 1px solid rgba(56, 189, 248, 0.2);
+  padding: 2px 6px;
+  border-radius: 2px;
+  text-transform: uppercase;
+}
+
+.audit-grid .cand-card {
+  opacity: 0.85;
+}
+.audit-grid .cand-card:hover {
+  opacity: 1;
+}
+
 .candidates-cards-grid,
 .candidates-cards-strip {
   display: grid;

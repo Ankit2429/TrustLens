@@ -825,38 +825,38 @@ document.addEventListener('DOMContentLoaded', () => {
       refusalIpfsLink.href = data.manifest_cid ? `https://ipfs.io/ipfs/${data.manifest_cid}` : '#';
     }
 
-    // Render Full Discovered Candidates Gallery (ALL Usable Candidates)
+    // Derive candidate collections
     const allCands = data.all_candidates || [];
-    galleryCount.textContent = allCands.length;
+    const verifiedCands = allCands.filter(c => c.decision === 'VERIFIED');
+    const reviewCands = allCands.filter(c => c.decision === 'REVIEW');
+    const rejectedCands = allCands.filter(c => c.decision === 'REJECTED');
 
-    // Truthful Counts Breakdown Bar (Requirement 9)
+    // Truthful Runtime Counters Bar (Requirement 10)
     const dcbRawResults = document.getElementById('dcbRawResults');
-    const dcbUniqueSources = document.getElementById('dcbUniqueSources');
     const dcbImagesAnalyzed = document.getElementById('dcbImagesAnalyzed');
     const dcbFacesAnalyzed = document.getElementById('dcbFacesAnalyzed');
     const dcbVerifiedCount = document.getElementById('dcbVerifiedCount');
     const dcbReviewCount = document.getElementById('dcbReviewCount');
     const dcbRejectedCount = document.getElementById('dcbRejectedCount');
+    const dcbSupportingSources = document.getElementById('dcbSupportingSources');
 
     if (dcbRawResults) dcbRawResults.textContent = summary.total_discovered !== undefined ? summary.total_discovered : allCands.length;
-    if (dcbUniqueSources) dcbUniqueSources.textContent = summary.unique_candidates !== undefined ? summary.unique_candidates : (dhud.unique_sources || allCands.length);
     if (dcbImagesAnalyzed) dcbImagesAnalyzed.textContent = summary.usable_evaluated !== undefined ? summary.usable_evaluated : allCands.length;
     if (dcbFacesAnalyzed) dcbFacesAnalyzed.textContent = summary.faces_evaluated !== undefined ? summary.faces_evaluated : facesAnalyzed;
-    if (dcbVerifiedCount) dcbVerifiedCount.textContent = summary.verified_count !== undefined ? summary.verified_count : allCands.filter(c => c.decision === 'VERIFIED').length;
-    if (dcbReviewCount) dcbReviewCount.textContent = summary.review_count !== undefined ? summary.review_count : allCands.filter(c => c.decision === 'REVIEW').length;
-    if (dcbRejectedCount) dcbRejectedCount.textContent = summary.rejected_count !== undefined ? summary.rejected_count : allCands.filter(c => c.decision === 'REJECTED').length;
+    if (dcbVerifiedCount) dcbVerifiedCount.textContent = summary.verified_count !== undefined ? summary.verified_count : verifiedCands.length;
+    if (dcbReviewCount) dcbReviewCount.textContent = summary.review_count !== undefined ? summary.review_count : reviewCands.length;
+    if (dcbRejectedCount) dcbRejectedCount.textContent = summary.rejected_count !== undefined ? summary.rejected_count : rejectedCands.length;
+    if (dcbSupportingSources) dcbSupportingSources.textContent = data.consensus_data ? (data.consensus_data.total_supporting || 0) : verifiedCands.length;
 
-    candidatesScrollStrip.innerHTML = '';
-
-    allCands.forEach((c, idx) => {
+    // Helper to generate a candidate card
+    function buildCandidateCard(c, isStrongest = false) {
       const card = document.createElement('div');
-      const isStrongest = (best.link && c.link === best.link) || idx === 0;
-      card.className = `cand-card ${isStrongest ? 'cand-card-winning' : ''}`;
+      card.className = `cand-card ${isStrongest ? 'cand-card-winning' : ''} ${c.decision === 'REJECTED' ? 'cand-card-rejected' : ''}`;
       const tagClass = c.decision === 'VERIFIED' ? 'tag-verif' : c.decision === 'REVIEW' ? 'tag-rev' : 'tag-rej';
       const realUrl = c.link || '#';
       const displayUrl = realUrl.length > 50 ? `${realUrl.slice(0, 48)}...` : realUrl;
+      const searchCat = c.search_category || 'visual_matches';
 
-      // Group photo face breakdown inside candidate card
       let groupFacesHtml = '';
       if (c.face_count > 1 && c.candidate_faces_evaluated && c.candidate_faces_evaluated.length > 0) {
         groupFacesHtml = `
@@ -883,6 +883,7 @@ document.addEventListener('DOMContentLoaded', () => {
           <div class="cand-score-row">
             <span class="cand-score">${Number(c.similarity).toFixed(3)}</span>
             <span class="cand-tag ${tagClass}">${c.decision}</span>
+            <span class="cand-cat-badge">${escapeHtml(searchCat)}</span>
             <span class="cand-platform-tag">${escapeHtml(c.platform || c.domain || 'WEB')}</span>
           </div>
           <div class="cand-title" title="${escapeHtml(c.title || c.domain || 'Discovered Source')}">
@@ -900,8 +901,84 @@ document.addEventListener('DOMContentLoaded', () => {
           </a>
         </div>
       `;
-      candidatesScrollStrip.appendChild(card);
-    });
+      return card;
+    }
+
+    // 03. Render ALL Discovered Web + Social Evidence
+    const allDiscoveredCount = document.getElementById('allDiscoveredCount');
+    const allDiscoveredGrid = document.getElementById('allDiscoveredGrid');
+    if (allDiscoveredCount) allDiscoveredCount.textContent = allCands.length;
+    if (allDiscoveredGrid) {
+      allDiscoveredGrid.innerHTML = '';
+      allCands.forEach((c, idx) => {
+        const isStrongest = (best.link && c.link === best.link) || idx === 0;
+        allDiscoveredGrid.appendChild(buildCandidateCard(c, isStrongest));
+      });
+    }
+
+    // 04. Render Face-Confirmed Matches (All VERIFIED Candidates)
+    const verifiedMatchesCount = document.getElementById('verifiedMatchesCount');
+    const verifiedMatchesGrid = document.getElementById('verifiedMatchesGrid');
+    const verifiedEmptyNotice = document.getElementById('verifiedEmptyNotice');
+    if (verifiedMatchesCount) verifiedMatchesCount.textContent = verifiedCands.length;
+    if (verifiedMatchesGrid) {
+      verifiedMatchesGrid.innerHTML = '';
+      if (verifiedCands.length > 0) {
+        if (verifiedEmptyNotice) verifiedEmptyNotice.style.display = 'none';
+        verifiedCands.forEach((c, idx) => {
+          const isStrongest = (best.link && c.link === best.link) || idx === 0;
+          verifiedMatchesGrid.appendChild(buildCandidateCard(c, isStrongest));
+        });
+      } else {
+        if (verifiedEmptyNotice) verifiedEmptyNotice.style.display = 'block';
+      }
+    }
+
+    // 05. Render Review / Borderline Candidates
+    const reviewCandidatesCount = document.getElementById('reviewCandidatesCount');
+    const reviewCandidatesGrid = document.getElementById('reviewCandidatesGrid');
+    const reviewEmptyNotice = document.getElementById('reviewEmptyNotice');
+    if (reviewCandidatesCount) reviewCandidatesCount.textContent = reviewCands.length;
+    if (reviewCandidatesGrid) {
+      reviewCandidatesGrid.innerHTML = '';
+      if (reviewCands.length > 0) {
+        if (reviewEmptyNotice) reviewEmptyNotice.style.display = 'none';
+        reviewCands.forEach(c => {
+          reviewCandidatesGrid.appendChild(buildCandidateCard(c, false));
+        });
+      } else {
+        if (reviewEmptyNotice) reviewEmptyNotice.style.display = 'block';
+      }
+    }
+
+    // 06. Render Rejected / Non-Matching Candidates (Audit Evidence)
+    const rejectedCandidatesCount = document.getElementById('rejectedCandidatesCount');
+    const rejectedCandidatesGrid = document.getElementById('rejectedCandidatesGrid');
+    const rejectedEmptyNotice = document.getElementById('rejectedEmptyNotice');
+    if (rejectedCandidatesCount) rejectedCandidatesCount.textContent = rejectedCands.length;
+    if (rejectedCandidatesGrid) {
+      rejectedCandidatesGrid.innerHTML = '';
+      if (rejectedCands.length > 0) {
+        if (rejectedEmptyNotice) rejectedEmptyNotice.style.display = 'none';
+        rejectedCands.forEach(c => {
+          rejectedCandidatesGrid.appendChild(buildCandidateCard(c, false));
+        });
+      } else {
+        if (rejectedEmptyNotice) rejectedEmptyNotice.style.display = 'block';
+      }
+    }
+
+    // Toggle button for audit evidence
+    const toggleRejectedAuditBtn = document.getElementById('toggleRejectedAuditBtn');
+    if (toggleRejectedAuditBtn) {
+      toggleRejectedAuditBtn.onclick = () => {
+        if (rejectedCandidatesGrid) {
+          const isHidden = rejectedCandidatesGrid.style.display === 'none';
+          rejectedCandidatesGrid.style.display = isHidden ? 'grid' : 'none';
+          toggleRejectedAuditBtn.textContent = isHidden ? 'COLLAPSE AUDIT EVIDENCE' : 'EXPAND AUDIT EVIDENCE';
+        }
+      };
+    }
 
     // Render Source Relationship Graph & Consensus Matrix
     const srg = data.relationship_graph;

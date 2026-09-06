@@ -347,39 +347,118 @@
       </div>
 
       <!-- 3. VERDICT & EVIDENCE / PROOF MONOLITH -->
+      <!-- 3. VERDICT & EVIDENCE / PROOF MONOLITH -->
       <div class="result-evidence-deck" id="resultShowcaseSection" style="display:none">
         
-        <!-- 3. DISCOVERED CANDIDATE IMAGES GALLERY -->
-        <div class="candidates-correlations-section" id="candidatesGallerySection">
+        <!-- 03. ALL DISCOVERED WEB + SOCIAL EVIDENCE -->
+        <section class="candidates-correlations-section" id="allDiscoveredEvidenceSection">
           <div class="gallery-header-bar">
             <div class="gh-left">
               <span class="gh-kicker">03 // DISCOVERY RESULTS</span>
-              <h3 class="gallery-header-title">DISCOVERED CANDIDATE IMAGES (<span id="galleryCount">0</span>)</h3>
+              <h3 class="gallery-header-title">DISCOVERED WEB / SOCIAL EVIDENCE (<span id="allDiscoveredCount">0</span>)</h3>
             </div>
             <div class="gh-right">
-              <span class="gallery-sort-badge">SORTED BY VERIFICATION STATUS</span>
+              <span class="gallery-sort-badge">ALL RETURNED SEARCH EVIDENCE</span>
             </div>
           </div>
 
-          <!-- Truthful Counts Breakdown Bar (Requirement 9) -->
-          <div class="discovery-counts-bar" id="discoveryCountsBar">
-            <div class="dcb-item"><span class="dcb-label">SEARCH RESULTS</span><span class="dcb-val" id="dcbRawResults">0</span></div>
-            <div class="dcb-item"><span class="dcb-label">UNIQUE SOURCES</span><span class="dcb-val" id="dcbUniqueSources">0</span></div>
-            <div class="dcb-item"><span class="dcb-label">IMAGES ANALYZED</span><span class="dcb-val" id="dcbImagesAnalyzed">0</span></div>
-            <div class="dcb-item"><span class="dcb-label">FACES ANALYZED</span><span class="dcb-val" id="dcbFacesAnalyzed">0</span></div>
-            <div class="dcb-item dcb-verif"><span class="dcb-label">VERIFIED</span><span class="dcb-val" id="dcbVerifiedCount">0</span></div>
-            <div class="dcb-item dcb-rev"><span class="dcb-label">REVIEW</span><span class="dcb-val" id="dcbReviewCount">0</span></div>
-            <div class="dcb-item dcb-rej"><span class="dcb-label">REJECTED</span><span class="dcb-val" id="dcbRejectedCount">0</span></div>
+          <!-- Conceptual Distinctions Bar (Requirement 9) -->
+          <div class="discovery-concept-legend">
+            <span class="dcl-item"><span class="dcl-badge dcl-disc">DISCOVERED</span> Search Result</span>
+            <span class="dcl-item"><span class="dcl-badge dcl-analy">ANALYZED</span> Processed</span>
+            <span class="dcl-item"><span class="dcl-badge dcl-verif">VERIFIED MATCH</span> ArcFace ≥ 0.60</span>
+            <span class="dcl-item"><span class="dcl-badge dcl-rev">REVIEW</span> 0.40 ≤ Sim &lt; 0.60</span>
+            <span class="dcl-item"><span class="dcl-badge dcl-rej">REJECTED</span> Sim &lt; 0.40</span>
+            <span class="dcl-item"><span class="dcl-badge dcl-vis">VISUALLY RELATED</span> Image Only</span>
+            <span class="dcl-item"><span class="dcl-badge dcl-same">SAME IMAGE</span> SHA Match Only</span>
           </div>
 
-          <div class="candidates-cards-grid" id="candidatesScrollStrip"></div>
-        </div>
+          <!-- Actual Runtime Counters Bar (Requirement 10) -->
+          <div class="discovery-counts-bar" id="discoveryCountsBar">
+            <div class="dcb-item"><span class="dcb-label">DISCOVERED RESULTS</span><span class="dcb-val" id="dcbRawResults">0</span></div>
+            <div class="dcb-item"><span class="dcb-label">USABLE IMAGES</span><span class="dcb-val" id="dcbImagesAnalyzed">0</span></div>
+            <div class="dcb-item"><span class="dcb-label">FACES ANALYZED</span><span class="dcb-val" id="dcbFacesAnalyzed">0</span></div>
+            <div class="dcb-item dcb-verif"><span class="dcb-label">VERIFIED MATCHES</span><span class="dcb-val" id="dcbVerifiedCount">0</span></div>
+            <div class="dcb-item dcb-rev"><span class="dcb-label">REVIEW CANDIDATES</span><span class="dcb-val" id="dcbReviewCount">0</span></div>
+            <div class="dcb-item dcb-rej"><span class="dcb-label">REJECTED CANDIDATES</span><span class="dcb-val" id="dcbRejectedCount">0</span></div>
+            <div class="dcb-item"><span class="dcb-label">SUPPORTING SOURCES</span><span class="dcb-val" id="dcbSupportingSources">0</span></div>
+          </div>
 
-        <!-- 4. STRONGEST CANDIDATE / MATCH -->
-        <div class="strongest-candidate-section" id="strongestCandidateSection">
+          <div class="candidates-cards-grid" id="allDiscoveredGrid"></div>
+        </section>
+
+        <!-- 04. FACE-CONFIRMED MATCHES (ALL VERIFIED CANDIDATES) -->
+        <section class="candidates-correlations-section" id="faceConfirmedMatchesSection">
           <div class="gallery-header-bar">
             <div class="gh-left">
-              <span class="gh-kicker">04 // MATCH ANALYSIS</span>
+              <span class="gh-kicker">04 // BIOMETRIC CONFIRMATION</span>
+              <h3 class="gallery-header-title">FACE-CONFIRMED MATCHES (<span id="verifiedMatchesCount">0</span>)</h3>
+            </div>
+            <span class="gallery-header-sub">INDEPENDENTLY CONFIRMED BY 512-D ARCFACE BIOMETRIC VERIFICATION (SIMILARITY ≥ 0.60)</span>
+          </div>
+          <div class="candidates-cards-grid" id="verifiedMatchesGrid"></div>
+          <div class="section-empty-notice" id="verifiedEmptyNotice" style="display:none">
+            No candidates met the high-confidence VERIFIED threshold (≥ 0.60).
+          </div>
+        </section>
+
+        <!-- 05. REVIEW / BORDERLINE CANDIDATES -->
+        <section class="candidates-correlations-section" id="reviewCandidatesSection">
+          <div class="gallery-header-bar">
+            <div class="gh-left">
+              <span class="gh-kicker">05 // BORDERLINE EVIDENCE</span>
+              <h3 class="gallery-header-title">REVIEW / BORDERLINE CANDIDATES (<span id="reviewCandidatesCount">0</span>)</h3>
+            </div>
+            <span class="gallery-header-sub">AMBIGUOUS BIOMETRIC EVIDENCE REQUIRING MANUAL INSPECTION (0.40 ≤ SIMILARITY &lt; 0.60)</span>
+          </div>
+          <div class="candidates-cards-grid" id="reviewCandidatesGrid"></div>
+          <div class="section-empty-notice" id="reviewEmptyNotice" style="display:none">
+            No candidates in the borderline REVIEW similarity range.
+          </div>
+        </section>
+
+        <!-- 06. REJECTED / NON-MATCHING CANDIDATES (AUDIT EVIDENCE) -->
+        <section class="candidates-correlations-section" id="rejectedCandidatesSection">
+          <div class="gallery-header-bar">
+            <div class="gh-left">
+              <span class="gh-kicker">06 // AUDIT EVIDENCE</span>
+              <h3 class="gallery-header-title">REJECTED / NON-MATCHING CANDIDATES (<span id="rejectedCandidatesCount">0</span>)</h3>
+            </div>
+            <button type="button" class="btn-toggle-audit" id="toggleRejectedAuditBtn">
+              COLLAPSE / EXPAND AUDIT EVIDENCE
+            </button>
+          </div>
+          <div class="candidates-cards-grid audit-grid" id="rejectedCandidatesGrid"></div>
+          <div class="section-empty-notice" id="rejectedEmptyNotice" style="display:none">
+            No non-matching candidate images recorded.
+          </div>
+        </section>
+
+        <!-- 07. SOURCE RELATIONSHIP / CONSENSUS (Source Relationship Graph) -->
+        <section class="source-graph-section" id="sourceGraphSection" style="display:none">
+          <div class="gallery-header-bar">
+            <div class="gh-left">
+              <span class="gh-kicker">07 // EVIDENCE &amp; CONSENSUS</span>
+              <h3 class="gallery-header-title">SOURCE RELATIONSHIP GRAPH &amp; CONSENSUS (<span id="sgNodeCount">0</span> SOURCES)</h3>
+            </div>
+            <span class="gallery-header-sub" id="sgConsensusSummary">0 DOMAINS · NO CONSENSUS</span>
+          </div>
+
+          <div class="relationship-legend-bar">
+            <span class="legend-chip rel-same-img">SAME IMAGE</span>
+            <span class="legend-chip rel-same-person">SAME PERSON / DIFFERENT IMAGE</span>
+            <span class="legend-chip rel-vis-rel">VISUALLY RELATED IMAGE (NOT IDENTITY PROOF)</span>
+            <span class="legend-chip rel-diff-person">DIFFERENT PERSON</span>
+          </div>
+
+          <div class="source-graph-matrix" id="sourceGraphMatrix"></div>
+        </section>
+
+        <!-- 08. STRONGEST CANDIDATE EVIDENCE (PRIMARY MATCH) -->
+        <section class="strongest-candidate-section" id="strongestCandidateSection">
+          <div class="gallery-header-bar">
+            <div class="gh-left">
+              <span class="gh-kicker">08 // PRIMARY MATCH ANALYSIS</span>
               <h3 class="gallery-header-title">STRONGEST CANDIDATE EVIDENCE</h3>
             </div>
             <span class="gallery-header-sub" id="scRankBadge">RANK #1 EVALUATED MATCH</span>
@@ -398,7 +477,7 @@
                 <h4 class="smc-title" id="primaryMatchTitle">Awaiting Investigation...</h4>
               </div>
 
-              <!-- Prominent Source Block (Requirement) -->
+              <!-- Prominent Source Block -->
               <div class="smc-source-block">
                 <div class="smc-source-header">
                   <span class="smc-source-label">SOURCE</span>
@@ -436,7 +515,7 @@
                   <span class="smc-m-v tag-decision" id="similarityBadge">--</span>
                 </div>
                 <div class="smc-m-cell full-width">
-                  <span class="smc-m-k">RELATIONSHIP & CONSENSUS</span>
+                  <span class="smc-m-k">RELATIONSHIP &amp; CONSENSUS</span>
                   <span class="smc-m-v" id="resRelationshipVal">--</span>
                 </div>
               </div>
@@ -445,14 +524,14 @@
               <div class="primary-group-breakdown" id="primaryGroupBreakdown" style="display:none"></div>
             </div>
           </div>
-        </div>
+        </section>
 
-        <!-- 5. FINAL BIOMETRIC VERDICT -->
-        <div class="verdict-section" id="verdictSection">
+        <!-- 09. FINAL BIOMETRIC VERDICT -->
+        <section class="verdict-section" id="verdictSection">
           <div class="verdict-banner" id="verdictBannerWrap">
             <div class="verdict-banner-inner">
               <div class="verdict-title-group">
-                <span class="verdict-status-kicker" id="verdictTag">05 // FINAL BIOMETRIC VERDICT</span>
+                <span class="verdict-status-kicker" id="verdictTag">09 // FINAL BIOMETRIC VERDICT</span>
                 <h2 class="verdict-headline" id="verdictHeadline">VERIFIED</h2>
                 <p class="verdict-subtext" id="verdictSubReason">Face similarity exceeds verified threshold with clear candidate quality differentiation.</p>
               </div>
@@ -463,24 +542,12 @@
               </div>
             </div>
           </div>
-        </div>
+        </section>
 
-        <!-- 6. EVIDENCE & CONSENSUS (Source Relationship Graph) -->
-        <div class="source-graph-section" id="sourceGraphSection" style="display:none">
-          <div class="gallery-header-bar">
-            <div class="gh-left">
-              <span class="gh-kicker">06 // EVIDENCE & CONSENSUS</span>
-              <h3 class="gallery-header-title">SOURCE RELATIONSHIP GRAPH & CONSENSUS (<span id="sgNodeCount">0</span> SOURCES)</h3>
-            </div>
-            <span class="gallery-header-sub" id="sgConsensusSummary">0 DOMAINS · NO CONSENSUS</span>
-          </div>
-          <div class="source-graph-matrix" id="sourceGraphMatrix"></div>
-        </div>
-
-        <!-- 7. BLOCKCHAIN PROOF ANCHOR -->
-        <div class="proof-anchor-section" id="proofAnchorSection">
+        <!-- 10-12. BLOCKCHAIN PROOF ANCHOR & EVIDENCE MANIFEST -->
+        <section class="proof-anchor-section" id="proofAnchorSection">
           <div class="p-section-header">
-            <span class="p-section-kicker">07 // LEDGER EVIDENCE</span>
+            <span class="p-section-kicker">10-12 // LEDGER EVIDENCE</span>
             <h3 class="p-section-title">BLOCKCHAIN PROOF ANCHOR</h3>
           </div>
           <!-- On-Chain Proof Monolith (For VERIFIED) -->

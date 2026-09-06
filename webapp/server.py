@@ -264,6 +264,7 @@ async def analyze_and_execute_pipeline(
             evaluated_candidates.append({
                 "rank": c.get("search_rank", 1),
                 "platform": c.get("platform", "General Web"),
+                "search_category": c.get("search_mode", c.get("category", "visual_matches")),
                 "title": c.get("title", ""),
                 "link": c.get("link", ""),
                 "domain": c.get("domain", ""),
