@@ -1582,6 +1582,62 @@ body.app-body {
   color: var(--text-muted);
 }
 
+.gallery-sort-badge {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  letter-spacing: 0.15em;
+  color: var(--accent-cyan);
+  background: rgba(56, 189, 248, 0.08);
+  border: 1px solid rgba(56, 189, 248, 0.25);
+  padding: 4px 10px;
+  border-radius: var(--radius-full);
+  font-weight: 600;
+  text-transform: uppercase;
+}
+
+.discovery-counts-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 16px;
+  background: var(--surface-2);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  padding: 10px 16px;
+  margin-bottom: 18px;
+}
+
+.dcb-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  color: var(--text-muted);
+}
+
+.dcb-label {
+  color: var(--text-muted);
+}
+
+.dcb-val {
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.dcb-item.dcb-verif .dcb-val {
+  color: var(--accent-verified);
+}
+
+.dcb-item.dcb-rev .dcb-val {
+  color: var(--accent-review);
+}
+
+.dcb-item.dcb-rej .dcb-val {
+  color: var(--text-secondary);
+}
+
 .candidates-cards-grid,
 .candidates-cards-strip {
   display: grid;

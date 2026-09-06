@@ -356,8 +356,22 @@
               <span class="gh-kicker">03 // DISCOVERY RESULTS</span>
               <h3 class="gallery-header-title">DISCOVERED CANDIDATE IMAGES (<span id="galleryCount">0</span>)</h3>
             </div>
-            <span class="gallery-header-sub">ALL USABLE CANDIDATES EVALUATED ACROSS ALL DETECTED FACES</span>
+            <div class="gh-right">
+              <span class="gallery-sort-badge">SORTED BY VERIFICATION STATUS</span>
+            </div>
           </div>
+
+          <!-- Truthful Counts Breakdown Bar (Requirement 9) -->
+          <div class="discovery-counts-bar" id="discoveryCountsBar">
+            <div class="dcb-item"><span class="dcb-label">SEARCH RESULTS</span><span class="dcb-val" id="dcbRawResults">0</span></div>
+            <div class="dcb-item"><span class="dcb-label">UNIQUE SOURCES</span><span class="dcb-val" id="dcbUniqueSources">0</span></div>
+            <div class="dcb-item"><span class="dcb-label">IMAGES ANALYZED</span><span class="dcb-val" id="dcbImagesAnalyzed">0</span></div>
+            <div class="dcb-item"><span class="dcb-label">FACES ANALYZED</span><span class="dcb-val" id="dcbFacesAnalyzed">0</span></div>
+            <div class="dcb-item dcb-verif"><span class="dcb-label">VERIFIED</span><span class="dcb-val" id="dcbVerifiedCount">0</span></div>
+            <div class="dcb-item dcb-rev"><span class="dcb-label">REVIEW</span><span class="dcb-val" id="dcbReviewCount">0</span></div>
+            <div class="dcb-item dcb-rej"><span class="dcb-label">REJECTED</span><span class="dcb-val" id="dcbRejectedCount">0</span></div>
+          </div>
+
           <div class="candidates-cards-grid" id="candidatesScrollStrip"></div>
         </div>
 

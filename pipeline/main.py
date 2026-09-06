@@ -173,7 +173,21 @@ def evaluate_candidates_concurrently(
 
             cand_faces = detect_all_faces(raw_bytes, min_quality=0.15)
             if not cand_faces:
-                # No face detected in image -> REJECTED
+                # No face detected in image -> Retain as REJECTED candidate
+                result_entry = {
+                    "candidate": c,
+                    "similarity": 0.0,
+                    "decision": "REJECTED",
+                    "reason": "No faces detected in candidate image",
+                    "face_count": 0,
+                    "best_face_index": 0,
+                    "matched_face_id": "NO FACE",
+                    "candidate_faces_evaluated": [],
+                    "det_confidence": 0.0,
+                    "image_quality": 0.0,
+                    "thumbnail_sha256": thumb_hash,
+                }
+                verified_results.append(result_entry)
                 continue
 
             # Compare query face against ALL detected faces in candidate group photo
@@ -406,9 +420,9 @@ def run_pipeline(
         print(f"  Separation Margin Gap       : {sep_margin:.4f} ({margin_data['margin_interpretation']})")
     print("  ====================================================================\n")
 
-    # Primary Section: Verified Matches
+    # Candidate Breakdown Sections
     if verified_matches:
-        print("  [+] PRIMARY SECTION: VERIFIED MATCHES:")
+        print("  [+] VERIFIED MATCHES:")
         for idx, r in enumerate(verified_matches, start=1):
             c = r["candidate"]
             print(f"      [{idx}] Platform  : {c.get('platform')}")
@@ -418,6 +432,27 @@ def run_pipeline(
             print(f"          Reason    : {r['reason']}")
     else:
         print("  [-] No candidates met the high-confidence VERIFIED threshold.")
+
+    if review_matches:
+        print("\n  [?] REVIEW CANDIDATES (BORDERLINE / AMBIGUOUS):")
+        for idx, r in enumerate(review_matches, start=1):
+            c = r["candidate"]
+            print(f"      [{idx}] Platform  : {c.get('platform')}")
+            print(f"          URL       : {c.get('link')}")
+            print(f"          Similarity: {r['similarity']:.4f} (Quality: {r['image_quality']:.2f})")
+            print(f"          Decision  : [{r['decision']}]")
+            print(f"          Reason    : {r['reason']}")
+
+    if rejected_matches:
+        print(f"\n  [x] REJECTED CANDIDATES ({len(rejected_matches)} NON-MATCHING EVIDENCE):")
+        for idx, r in enumerate(rejected_matches[:8], start=1):
+            c = r["candidate"]
+            print(f"      [{idx}] Platform  : {c.get('platform')}")
+            print(f"          URL       : {c.get('link')}")
+            print(f"          Similarity: {r['similarity']:.4f}")
+            print(f"          Decision  : [{r['decision']}]")
+        if len(rejected_matches) > 8:
+            print(f"      ... and {len(rejected_matches) - 8} more rejected candidate(s)")
 
     # Select primary match: Prioritize verified social platform -> any verified -> review -> rejected
     if verified_matches:

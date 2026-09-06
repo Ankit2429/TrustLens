@@ -828,6 +828,24 @@ document.addEventListener('DOMContentLoaded', () => {
     // Render Full Discovered Candidates Gallery (ALL Usable Candidates)
     const allCands = data.all_candidates || [];
     galleryCount.textContent = allCands.length;
+
+    // Truthful Counts Breakdown Bar (Requirement 9)
+    const dcbRawResults = document.getElementById('dcbRawResults');
+    const dcbUniqueSources = document.getElementById('dcbUniqueSources');
+    const dcbImagesAnalyzed = document.getElementById('dcbImagesAnalyzed');
+    const dcbFacesAnalyzed = document.getElementById('dcbFacesAnalyzed');
+    const dcbVerifiedCount = document.getElementById('dcbVerifiedCount');
+    const dcbReviewCount = document.getElementById('dcbReviewCount');
+    const dcbRejectedCount = document.getElementById('dcbRejectedCount');
+
+    if (dcbRawResults) dcbRawResults.textContent = summary.total_discovered !== undefined ? summary.total_discovered : allCands.length;
+    if (dcbUniqueSources) dcbUniqueSources.textContent = summary.unique_candidates !== undefined ? summary.unique_candidates : (dhud.unique_sources || allCands.length);
+    if (dcbImagesAnalyzed) dcbImagesAnalyzed.textContent = summary.usable_evaluated !== undefined ? summary.usable_evaluated : allCands.length;
+    if (dcbFacesAnalyzed) dcbFacesAnalyzed.textContent = summary.faces_evaluated !== undefined ? summary.faces_evaluated : facesAnalyzed;
+    if (dcbVerifiedCount) dcbVerifiedCount.textContent = summary.verified_count !== undefined ? summary.verified_count : allCands.filter(c => c.decision === 'VERIFIED').length;
+    if (dcbReviewCount) dcbReviewCount.textContent = summary.review_count !== undefined ? summary.review_count : allCands.filter(c => c.decision === 'REVIEW').length;
+    if (dcbRejectedCount) dcbRejectedCount.textContent = summary.rejected_count !== undefined ? summary.rejected_count : allCands.filter(c => c.decision === 'REJECTED').length;
+
     candidatesScrollStrip.innerHTML = '';
 
     allCands.forEach((c, idx) => {
