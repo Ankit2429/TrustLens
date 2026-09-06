@@ -55,33 +55,37 @@ def calculate_separation_margin(
     verified_similarities: list[float],
     rejected_similarities: list[float],
 ) -> dict[str, Any]:
-    """Calculate the separation margin between the best verified match and the strongest rejected candidate.
+    """Calculate the separation margin between the best verified match and the strongest rejected/non-verified candidate.
 
     Args:
         verified_similarities: List of similarity scores for candidates meeting verified threshold.
         rejected_similarities: List of similarity scores for non-verified / rejected candidates.
 
     Returns:
-        Dictionary with best_verified, best_rejected, separation_margin, and interpretation.
+        Dictionary with best_verified, best_nonverified, separation_margin, is_suspicious_margin, and interpretation.
     """
     best_ver = max(verified_similarities) if verified_similarities else 0.0
     best_rej = max(rejected_similarities) if rejected_similarities else 0.0
     margin = round(best_ver - best_rej, 4) if (verified_similarities and rejected_similarities) else None
+    is_suspicious = False
 
     if margin is not None:
         if margin >= 0.30:
-            interp = "Clear separation: Strong differentiation between matching subject and non-matching candidates"
+            interp = f"Clear separation ({margin:.4f} >= 0.30): Strong differentiation between matching subject and non-matching candidates"
         elif margin >= 0.10:
-            interp = "Moderate separation: Meaningful differentiation observed across evaluated candidates"
+            interp = f"Moderate separation ({margin:.4f} >= 0.10): Meaningful differentiation observed across evaluated candidates"
         else:
-            interp = "Narrow margin: Evaluation warrants closer inspection of boundary candidates"
+            is_suspicious = True
+            interp = f"Suspicious / Narrow margin ({margin:.4f} < 0.10): Boundary risk between verified match ({best_ver:.4f}) and non-verified candidate ({best_rej:.4f})"
     else:
         interp = "Single-tier distribution: Margin calculation requires both verified and non-matching candidates"
 
     return {
         "best_verified_similarity": round(best_ver, 4) if verified_similarities else None,
         "best_rejected_similarity": round(best_rej, 4) if rejected_similarities else None,
+        "best_nonverified_similarity": round(best_rej, 4) if rejected_similarities else None,
         "separation_margin": margin,
+        "is_suspicious_margin": is_suspicious,
         "margin_interpretation": interp,
     }
 

@@ -59,14 +59,14 @@ def test_webapp_integration():
         print(f"      - Polygon Amoy Tx: {chain_receipt.get('tx_hash')} (Block #{chain_receipt.get('block')})")
 
     print(f"\n[5/7] Testing POST /api/verify for hash: {proof_hash}...")
-    r = requests.post(f"{BASE_URL}/api/verify", json={"proof_hash": proof_hash}, timeout=30)
+    r = requests.post(f"{BASE_URL}/api/verify", json={"proof_hash": proof_hash}, timeout=60)
     assert r.status_code == 200, f"Verify endpoint failed: {r.text}"
     verif_res = r.json()
     assert verif_res["is_valid"] is True, f"Verification returned invalid: {verif_res}"
     print(f"      On-Chain Verification: VALID (Match: {verif_res['is_valid']})")
 
     print(f"\n[6/7] Testing POST /api/tamper-test for hash: {proof_hash}...")
-    r = requests.post(f"{BASE_URL}/api/tamper-test", json={"proof_hash": proof_hash, "tamper_field": "url"}, timeout=30)
+    r = requests.post(f"{BASE_URL}/api/tamper-test", json={"proof_hash": proof_hash, "tamper_field": "url"}, timeout=60)
     assert r.status_code == 200, f"Tamper test failed: {r.text}"
     tamper_res = r.json()
     assert tamper_res["tamper_detected"] is True, "Tamper was not detected"

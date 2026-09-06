@@ -684,6 +684,29 @@ document.addEventListener('DOMContentLoaded', () => {
       if (dcSupportingSources) {
         dcSupportingSources.textContent = data.consensus_data ? data.consensus_data.total_supporting : 0;
       }
+      const dcSeparationMargin = document.getElementById('dcSeparationMargin');
+      if (dcSeparationMargin) {
+        if (summary.separation_margin !== null && summary.separation_margin !== undefined) {
+          const suspStr = summary.is_suspicious_margin ? ' ⚠️ NARROW' : ' ✓ CLEAR';
+          dcSeparationMargin.textContent = `+${summary.separation_margin.toFixed(4)}${suspStr}`;
+          if (summary.is_suspicious_margin) {
+            dcSeparationMargin.style.color = 'var(--warning, #f59e0b)';
+          } else {
+            dcSeparationMargin.style.color = 'var(--accent-teal, #10b981)';
+          }
+        } else {
+          dcSeparationMargin.textContent = 'N/A';
+        }
+      }
+      const dcRuntimeTelemetry = document.getElementById('dcRuntimeTelemetry');
+      if (dcRuntimeTelemetry && data.performance) {
+        const p = data.performance;
+        const disc = p.discovery_latency_seconds !== undefined ? `${p.discovery_latency_seconds.toFixed(2)}s` : '--';
+        const down = p.download_latency_seconds !== undefined ? `${p.download_latency_seconds.toFixed(2)}s` : '--';
+        const face = p.face_analysis_latency_seconds !== undefined ? `${p.face_analysis_latency_seconds.toFixed(2)}s` : '--';
+        const tot = p.total_latency_seconds !== undefined ? `${p.total_latency_seconds.toFixed(2)}s` : '--';
+        dcRuntimeTelemetry.textContent = `DISCOVERY: ${disc} | DOWNLOAD: ${down} | FACE: ${face} | TOTAL: ${tot}`;
+      }
     }
 
     // Dynamic Platform Illumination based on ACTUAL returned platforms

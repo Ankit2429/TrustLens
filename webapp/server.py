@@ -252,13 +252,14 @@ async def analyze_and_execute_pipeline(
         t0 = time.perf_counter()
         stages_log.append({"stage": 5, "name": "Independent Candidate Multi-Face Verification", "status": "RUNNING"})
         
-        raw_eval_results, usable_count = evaluate_candidates_concurrently(
+        raw_eval_results, usable_count, eval_telemetry = evaluate_candidates_concurrently(
             candidates=candidates,
             query_emb=query_emb,
             verified_threshold=verified_threshold,
             review_threshold=review_threshold,
             max_workers=8,
             query_multiview=query_analysis.get("multiview"),
+            return_telemetry=True,
         )
 
         evaluated_candidates = []
@@ -291,8 +292,14 @@ async def analyze_and_execute_pipeline(
         )
         total_faces_evaluated = sum(r["face_count"] for r in raw_eval_results)
         timings["5_cand_eval"] = time.perf_counter() - t0
+        timings["5a_download"] = eval_telemetry["download_time"]
+        timings["5b_face_analysis"] = eval_telemetry["face_inference_time"]
         stages_log[-1]["status"] = "SUCCESS"
-        stages_log[-1]["detail"] = f"Evaluated {total_faces_evaluated} candidate faces across {usable_count} images in {timings['5_cand_eval']:.2f}s"
+        stages_log[-1]["detail"] = (
+            f"Evaluated {total_faces_evaluated} faces across {eval_telemetry['unique_images_analyzed']} unique images "
+            f"(download: {eval_telemetry['download_time']:.2f}s, inference: {eval_telemetry['face_inference_time']:.2f}s) "
+            f"[{timings['5_cand_eval']:.2f}s]"
+        )
 
         # [6/9] Candidate Ranking & Separation Margin
         t0 = time.perf_counter()
@@ -482,8 +489,13 @@ async def analyze_and_execute_pipeline(
                 "verified_count": len(verified_matches),
                 "review_count": len(review_candidates),
                 "rejected_count": len(rejected_candidates),
+                "best_verified_similarity": margin_info.get("best_verified_similarity"),
+                "best_nonverified_similarity": margin_info.get("best_nonverified_similarity"),
                 "separation_margin": sep_margin,
+                "is_suspicious_margin": margin_info.get("is_suspicious_margin", False),
                 "margin_interpretation": margin_info.get("margin_interpretation"),
+                "mode_timings": search_telemetry.get("mode_timings", {}),
+                "new_unique_candidates_per_page": search_telemetry.get("new_unique_candidates_per_page", {}),
                 "consensus": consensus_data,
                 "confidence": confidence_data,
             },
@@ -500,7 +512,23 @@ async def analyze_and_execute_pipeline(
             "blockchain_receipt": chain_receipt,
             "performance": {
                 "total_latency_seconds": round(total_latency, 2),
+                "discovery_latency_seconds": round(timings.get("4_search_api", 0.0), 2),
+                "download_latency_seconds": round(eval_telemetry.get("download_time", 0.0), 2),
+                "face_analysis_latency_seconds": round(eval_telemetry.get("face_inference_time", 0.0), 2),
+                "evidence_latency_seconds": round(timings.get("6_ranking", 0.0) + timings.get("7_manifest", 0.0), 2),
                 "timings_seconds": {k: round(v, 3) for k, v in timings.items()},
+                "download_stats": {
+                    "attempted": eval_telemetry.get("download_attempted", 0),
+                    "successful": eval_telemetry.get("download_successful", 0),
+                    "failed": eval_telemetry.get("download_failed", 0),
+                    "average_latency_seconds": round(eval_telemetry.get("download_avg_latency", 0.0), 3),
+                },
+                "face_analysis_stats": {
+                    "images_analyzed": usable_count,
+                    "unique_images_analyzed": eval_telemetry.get("unique_images_analyzed", usable_count),
+                    "faces_analyzed": total_faces_evaluated,
+                    "total_inference_seconds": round(eval_telemetry.get("face_inference_time", 0.0), 3),
+                },
             },
         }
     except Exception as e:

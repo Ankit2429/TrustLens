@@ -370,3 +370,97 @@ def test_live_face_analysis_on_sample_image():
     assert analysis1["embedding_hash"] == analysis2["embedding_hash"]
     assert len(analysis1["embedding_hash"]) == 64
     assert pytest.approx(cosine_similarity(emb1, analysis2["normalized_embedding"]), abs=1e-5) == 1.0
+
+
+# =====================================================================
+# 10. Hard-Negative Separation Margin & Suspicious Flag Tests
+# =====================================================================
+
+def test_separation_margin_suspicious_narrow_flag():
+    """Separation margin < 0.10 must be flagged as suspicious/narrow."""
+    verified_sims = [0.91]
+    rejected_sims = [0.88]
+
+    margin_data = calculate_separation_margin(verified_sims, rejected_sims)
+    assert margin_data["separation_margin"] == 0.03
+    assert margin_data["is_suspicious_margin"] is True
+    assert margin_data["best_nonverified_similarity"] == 0.88
+    assert "Suspicious / Narrow margin" in margin_data["margin_interpretation"]
+
+
+def test_separation_margin_clear_flag():
+    """Separation margin >= 0.10 must not be flagged as suspicious."""
+    verified_sims = [0.94]
+    rejected_sims = [0.22]
+
+    margin_data = calculate_separation_margin(verified_sims, rejected_sims)
+    assert margin_data["separation_margin"] == 0.72
+    assert margin_data["is_suspicious_margin"] is False
+    assert margin_data["best_nonverified_similarity"] == 0.22
+    assert "Clear separation" in margin_data["margin_interpretation"]
+
+
+# =====================================================================
+# 11. Decision Gating Tests (ArcFace + Quality + Detection Confidence)
+# =====================================================================
+
+def test_classify_decision_confidence_gating():
+    """Candidates with similarity >= 0.60 but low det_score (<0.40) must fall back to REVIEW."""
+    from pipeline.main import classify_decision
+
+    dec, reason = classify_decision(0.75, 0.60, 0.40, is_quality_pass=True, det_confidence=0.35)
+    assert dec == "REVIEW"
+    assert "detector confidence" in reason
+
+
+def test_classify_decision_quality_gating():
+    """Candidates with similarity >= 0.60 but failing quality check must fall back to REVIEW."""
+    from pipeline.main import classify_decision
+
+    dec, reason = classify_decision(0.75, 0.60, 0.40, is_quality_pass=False, det_confidence=0.95)
+    assert dec == "REVIEW"
+    assert "quality warrants manual inspection" in reason
+
+
+def test_classify_decision_verified_success():
+    """Candidates with high similarity, good quality, and robust detection score must be VERIFIED."""
+    from pipeline.main import classify_decision
+
+    dec, reason = classify_decision(0.82, 0.60, 0.40, is_quality_pass=True, det_confidence=0.92)
+    assert dec == "VERIFIED"
+    assert "exceeds verified threshold" in reason
+
+
+# =====================================================================
+# 12. Early Image Validation Tests
+# =====================================================================
+
+def test_early_image_validation_rejections():
+    """Early image validation must reject empty buffers, corrupted bytes, and sub-32x32 px images."""
+    import cv2
+    from pipeline.main import _validate_image_bytes
+
+    # Empty buffer
+    ok, _, reason = _validate_image_bytes(b"")
+    assert not ok
+    assert "minimum size" in reason
+
+    # Corrupted buffer
+    ok, _, reason = _validate_image_bytes(b"NON_IMAGE_CORRUPTED_BYTES" * 10)
+    assert not ok
+    assert "Failed to decode" in reason
+
+    # Sub-dimensional image (10x10 px)
+    tiny_img = np.zeros((10, 10, 3), dtype=np.uint8)
+    _, tiny_bytes = cv2.imencode(".jpg", tiny_img)
+    ok, _, reason = _validate_image_bytes(tiny_bytes.tobytes())
+    assert not ok
+    assert "below minimum" in reason
+
+    # Valid image (64x64 px)
+    valid_img = np.full((64, 64, 3), 128, dtype=np.uint8)
+    _, valid_bytes = cv2.imencode(".jpg", valid_img)
+    ok, decoded, reason = _validate_image_bytes(valid_bytes.tobytes())
+    assert ok
+    assert decoded is not None
+    assert decoded.shape == (64, 64, 3)

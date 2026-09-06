@@ -4,11 +4,12 @@ Usage:
     python -m pipeline.main path/to/face.jpg [--face-index 0] [--verified-threshold 0.60] [--review-threshold 0.40] [--min-quality 0.20] [--skip-blockchain]
 """
 import argparse
+import collections
 import concurrent.futures
 import os
 import sys
 import time
-from typing import Any, Optional
+from typing import Any, Optional, Union
 
 try:
     if hasattr(sys.stdout, "reconfigure"):
@@ -18,6 +19,8 @@ try:
 except Exception:
     pass
 
+import cv2
+import numpy as np
 import requests
 from requests.adapters import HTTPAdapter
 from dotenv import load_dotenv
@@ -58,17 +61,27 @@ DEFAULT_MAX_CANDIDATES = int(os.environ.get("MAX_CANDIDATES", "40"))
 
 
 
+# Image I/O & Validation Limits
+MAX_IMAGE_BYTES = 10 * 1024 * 1024  # 10 MB maximum thumbnail buffer
+MIN_IMAGE_BYTES = 100               # 100 bytes minimum
+MIN_IMAGE_DIM = 32                  # 32x32 minimum dimension for usable face detection
+MAX_IMAGE_DIM = 4096                # 4096x4096 maximum dimension
+DOWNLOAD_CONNECT_TIMEOUT = 3.0      # Fast connect timeout
+DOWNLOAD_READ_TIMEOUT = 4.0         # Fast read timeout
+
+
 def classify_decision(
     similarity: float,
     verified_threshold: float,
     review_threshold: float,
     is_quality_pass: bool = True,
+    det_confidence: float = 1.0,
 ) -> tuple[str, str]:
     """Determine verification decision and explainable rationale code.
 
     Decision Categories:
-    - VERIFIED: Similarity crosses verified threshold (>= 0.60 default) and candidate passes quality checks.
-    - REVIEW: Similarity is near boundary (review <= sim < verified) or high-similarity face with degraded quality.
+    - VERIFIED: Similarity crosses verified threshold (>= 0.60 default), quality passed, and det_confidence >= 0.40.
+    - REVIEW: Similarity is near boundary (review <= sim < verified) or high-similarity face with degraded quality/confidence.
     - REJECTED: Similarity is below review threshold (< 0.40 default) — unrelated identity.
 
     Returns:
@@ -86,10 +99,16 @@ def classify_decision(
             f"Face similarity ({similarity:.4f} >= {review_threshold:.2f}) meets candidate baseline, but candidate image quality warrants manual inspection",
         )
 
+    if det_confidence < 0.40:
+        return (
+            "REVIEW",
+            f"Face similarity ({similarity:.4f} >= {review_threshold:.2f}) meets candidate baseline, but face detector confidence ({det_confidence:.2f} < 0.40) warrants manual verification",
+        )
+
     if similarity >= verified_threshold:
         return (
             "VERIFIED",
-            f"Face similarity ({similarity:.4f} >= {verified_threshold:.2f}) exceeds verified threshold and candidate passed quality checks",
+            f"Face similarity ({similarity:.4f} >= {verified_threshold:.2f}) exceeds verified threshold with confirmed quality and detection confidence",
         )
     else:
         return (
@@ -98,18 +117,58 @@ def classify_decision(
         )
 
 
-def _fetch_candidate_thumbnail(c: dict[str, Any], session: requests.Session) -> Optional[tuple[dict[str, Any], bytes]]:
-    """Download candidate thumbnail bytes with session connection pooling."""
-    thumb_url = c.get("thumbnail")
-    if not thumb_url:
-        return None
+def _validate_image_bytes(raw_bytes: bytes) -> tuple[bool, Optional[np.ndarray], str]:
+    """Validate and decode image byte buffer prior to expensive InsightFace inference."""
+    if not raw_bytes or len(raw_bytes) < MIN_IMAGE_BYTES:
+        return False, None, "Buffer empty or below minimum size threshold (100 bytes)"
+    if len(raw_bytes) > MAX_IMAGE_BYTES:
+        return False, None, f"Buffer exceeds 10MB maximum limit ({len(raw_bytes)} bytes)"
+
     try:
-        resp = session.get(thumb_url, timeout=6)
-        if resp.status_code == 200 and len(resp.content) > 0:
-            return (c, resp.content)
-    except Exception:
-        pass
-    return None
+        nparr = np.frombuffer(raw_bytes, np.uint8)
+        img = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
+        if img is None:
+            return False, None, "Failed to decode image from byte buffer (corrupted or unsupported format)"
+        h, w = img.shape[:2]
+        if h < MIN_IMAGE_DIM or w < MIN_IMAGE_DIM:
+            return False, None, f"Image dimensions ({w}x{h}) below minimum {MIN_IMAGE_DIM}x{MIN_IMAGE_DIM} px threshold"
+        if h > MAX_IMAGE_DIM or w > MAX_IMAGE_DIM:
+            return False, None, f"Image dimensions ({w}x{h}) exceed maximum {MAX_IMAGE_DIM}x{MAX_IMAGE_DIM} px threshold"
+        return True, img, "Valid image"
+    except Exception as e:
+        return False, None, f"Image validation exception: {str(e)}"
+
+
+def _fetch_thumbnail_by_url(
+    url: str,
+    session: requests.Session,
+) -> tuple[str, Optional[bytes], bool, str, float]:
+    """Download single thumbnail URL using pooled session and early validation.
+
+    Returns:
+        (url, raw_bytes, is_valid, status_or_error, latency_seconds)
+    """
+    t0 = time.perf_counter()
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+        "Accept": "image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8",
+    }
+    try:
+        resp = session.get(url, headers=headers, timeout=(DOWNLOAD_CONNECT_TIMEOUT, DOWNLOAD_READ_TIMEOUT), stream=False)
+        latency = time.perf_counter() - t0
+        if resp.status_code != 200:
+            return url, None, False, f"HTTP {resp.status_code}", latency
+        raw = resp.content
+        valid, _, reason = _validate_image_bytes(raw)
+        if not valid:
+            return url, None, False, reason, latency
+        return url, raw, True, "OK", latency
+    except requests.exceptions.Timeout:
+        return url, None, False, "Connection/read timeout", time.perf_counter() - t0
+    except requests.exceptions.RequestException as e:
+        return url, None, False, f"Network error: {type(e).__name__}", time.perf_counter() - t0
+    except Exception as e:
+        return url, None, False, f"Download error: {str(e)}", time.perf_counter() - t0
 
 
 def evaluate_candidates_concurrently(
@@ -120,62 +179,87 @@ def evaluate_candidates_concurrently(
     max_workers: int = 8,
     max_candidates: int = DEFAULT_MAX_CANDIDATES,
     query_multiview: Optional[dict[str, Any]] = None,
-) -> tuple[list[dict[str, Any]], int]:
-    """Concurrently download and independently evaluate candidate thumbnails in-memory.
+    return_telemetry: bool = False,
+) -> Union[tuple[list[dict[str, Any]], int], tuple[list[dict[str, Any]], int, dict[str, Any]]]:
+    """Concurrently download, deduplicate by content hash, and evaluate candidate images.
 
-    Args:
-        candidates: Discovered candidates from visual search.
-        query_emb: Normalized 512-d ArcFace query embedding.
-        verified_threshold: Similarity cutoff for VERIFIED status.
-        review_threshold: Similarity cutoff for REVIEW status.
-        max_workers: Thread pool size for bounded concurrent I/O.
-        max_candidates: Maximum candidates to process (bounded top-K).
-        query_multiview: Optional multi-view query representation dictionary.
-
-    Returns:
-        (evaluated_results, usable_images_count)
+    High-Efficiency Architecture:
+    1. Early image validation rejects corrupted/empty/sub-dimensional images before InsightFace.
+    2. Concurrent downloading uses requests connection pooling with bounded worker pool & fast timeouts.
+    3. Content Hash Deduplication: Multiple candidate sources referencing identical image bytes are
+       downloaded and processed through InsightFace EXACTLY ONCE.
+    4. Provenance Preservation: All candidate source records pointing to a shared image hash retain their
+       distinct platform, URL, title, and metadata, while sharing the biometric evaluation.
+    5. Two-Stage Verification: Stage A fast pass (face detection + ArcFace cosine similarity),
+       Stage B deep checks on top/borderline candidates.
+    6. Non-retrievable candidates are classified as UNRETRIEVABLE and retained in the evidence set.
     """
-    # Deduplicate candidate URLs while preserving search rank ordering
-    unique_candidates: list[dict[str, Any]] = []
-    seen_thumbs: set[str] = set()
-    for c in candidates:
-        thumb = c.get("thumbnail")
-        if thumb and thumb not in seen_thumbs:
-            seen_thumbs.add(thumb)
-            unique_candidates.append(c)
-        elif not thumb:
-            unique_candidates.append(c)
+    target_candidates = candidates[:max_candidates]
 
-    target_candidates = unique_candidates[:max_candidates]
+    url_to_candidates: dict[str, list[dict[str, Any]]] = collections.defaultdict(list)
+    candidates_without_thumb: list[dict[str, Any]] = []
 
-    # Concurrent thumbnail download using requests.Session with connection pooling
+    for c in target_candidates:
+        thumb = c.get("thumbnail") or c.get("image")
+        if thumb and str(thumb).startswith(("http://", "https://")):
+            url_to_candidates[str(thumb).strip()].append(c)
+        else:
+            candidates_without_thumb.append(c)
+
+    unique_urls = list(url_to_candidates.keys())
+
+    # Concurrent thumbnail download using connection-pooled requests.Session
+    t_down_start = time.perf_counter()
     session = requests.Session()
     adapter = HTTPAdapter(pool_connections=max_workers, pool_maxsize=max_workers, max_retries=1)
     session.mount("https://", adapter)
     session.mount("http://", adapter)
 
-    downloaded: list[tuple[dict[str, Any], bytes]] = []
-    with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
-        futures = [executor.submit(_fetch_candidate_thumbnail, c, session) for c in target_candidates]
-        for f in concurrent.futures.as_completed(futures):
-            res = f.result()
-            if res is not None:
-                downloaded.append(res)
+    url_to_bytes: dict[str, bytes] = {}
+    url_to_error: dict[str, str] = {}
+    download_latencies: list[float] = []
 
-    usable_images_count = len(downloaded)
-    verified_results: list[dict[str, Any]] = []
+    if unique_urls:
+        with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
+            future_to_url = {executor.submit(_fetch_thumbnail_by_url, url, session): url for url in unique_urls}
+            for f in concurrent.futures.as_completed(future_to_url):
+                try:
+                    url, raw, is_valid, status, lat = f.result()
+                    download_latencies.append(lat)
+                    if is_valid and raw:
+                        url_to_bytes[url] = raw
+                    else:
+                        url_to_error[url] = status
+                except Exception as e:
+                    u = future_to_url[f]
+                    url_to_error[u] = f"Fetch exception: {str(e)}"
 
-    # In-memory face detection & group comparison (avoids expensive disk temp files)
-    for c, raw_bytes in downloaded:
+    total_download_time = time.perf_counter() - t_down_start
+    download_attempted = len(unique_urls)
+    download_successful = len(url_to_bytes)
+    download_failed = len(url_to_error)
+
+    # Content-hash based deduplication: Map unique image bytes SHA-256 to candidate records
+    hash_to_bytes: dict[str, bytes] = {}
+    hash_to_candidates: dict[str, list[dict[str, Any]]] = collections.defaultdict(list)
+
+    for url, raw in url_to_bytes.items():
+        h = sha256_of_bytes(raw)
+        hash_to_bytes[h] = raw
+        for cand in url_to_candidates[url]:
+            cand["thumbnail_sha256"] = h
+            hash_to_candidates[h].append(cand)
+
+    # Face Analysis — Runs EXACTLY ONCE per unique image content hash
+    t_face_start = time.perf_counter()
+    hash_to_eval: dict[str, dict[str, Any]] = {}
+    total_faces_analyzed = 0
+
+    for h, raw_bytes in hash_to_bytes.items():
         try:
-            thumb_hash = sha256_of_bytes(raw_bytes)
-            c["thumbnail_sha256"] = thumb_hash
-
             cand_faces = detect_all_faces(raw_bytes, min_quality=0.15)
             if not cand_faces:
-                # No face detected in image -> Retain as REJECTED candidate
-                result_entry = {
-                    "candidate": c,
+                hash_to_eval[h] = {
                     "similarity": 0.0,
                     "decision": "REJECTED",
                     "reason": "No faces detected in candidate image",
@@ -185,27 +269,42 @@ def evaluate_candidates_concurrently(
                     "candidate_faces_evaluated": [],
                     "det_confidence": 0.0,
                     "image_quality": 0.0,
-                    "thumbnail_sha256": thumb_hash,
+                    "best_cand_face": None,
                 }
-                verified_results.append(result_entry)
                 continue
 
-            # Compare query face against ALL detected faces in candidate group photo
-            group_eval = compare_group_faces(query_emb, cand_faces, query_multiview=query_multiview)
+            total_faces_analyzed += len(cand_faces)
+
+            # Stage A — Fast Pass: Group comparison against query
+            group_eval = compare_group_faces(
+                query_emb,
+                cand_faces,
+                query_multiview=query_multiview,
+                verified_threshold=verified_threshold,
+                review_threshold=review_threshold,
+            )
             best_sim = group_eval["best_similarity"]
             best_cand_face = group_eval["best_candidate_face"]
             cand_quality = best_cand_face["quality"]["overall_quality"]
             is_quality_pass = best_cand_face["quality"]["is_usable"]
+            det_conf = float(best_cand_face.get("det_score", 1.0))
+
+            # Stage B — Deep Check on boundary and top candidates
+            if best_sim >= review_threshold:
+                dense = best_cand_face.get("dense_geometry")
+                if dense and dense.get("landmark_consistency") == "DEGRADED":
+                    if best_sim >= verified_threshold:
+                        is_quality_pass = False
 
             decision, reason = classify_decision(
                 best_sim,
                 verified_threshold,
                 review_threshold,
                 is_quality_pass=is_quality_pass,
+                det_confidence=det_conf,
             )
 
-            result_entry = {
-                "candidate": c,
+            hash_to_eval[h] = {
                 "similarity": best_sim,
                 "decision": decision,
                 "reason": reason,
@@ -213,14 +312,122 @@ def evaluate_candidates_concurrently(
                 "best_face_index": group_eval["best_face_index"],
                 "matched_face_id": group_eval.get("matched_face_id", f"FACE {group_eval['best_face_index'] + 1:02d}"),
                 "candidate_faces_evaluated": group_eval.get("candidate_faces_evaluated", []),
-                "det_confidence": best_cand_face["det_score"],
+                "det_confidence": det_conf,
                 "image_quality": cand_quality,
-                "thumbnail_sha256": thumb_hash,
+                "best_cand_face": best_cand_face,
             }
-            verified_results.append(result_entry)
-        except Exception:
-            continue
+        except Exception as e:
+            hash_to_eval[h] = {
+                "similarity": 0.0,
+                "decision": "REJECTED",
+                "reason": f"Face inference error: {str(e)}",
+                "face_count": 0,
+                "best_face_index": 0,
+                "matched_face_id": "ERROR",
+                "candidate_faces_evaluated": [],
+                "det_confidence": 0.0,
+                "image_quality": 0.0,
+                "best_cand_face": None,
+            }
 
+    face_inference_time = time.perf_counter() - t_face_start
+
+    # Replicate evaluated face results across all candidate records pointing to that image
+    verified_results: list[dict[str, Any]] = []
+
+    for h, cands in hash_to_candidates.items():
+        ev = hash_to_eval.get(h, {
+            "similarity": 0.0,
+            "decision": "REJECTED",
+            "reason": "Unevaluated image",
+            "face_count": 0,
+            "best_face_index": 0,
+            "matched_face_id": "NONE",
+            "candidate_faces_evaluated": [],
+            "det_confidence": 0.0,
+            "image_quality": 0.0,
+        })
+        for c in cands:
+            verified_results.append({
+                "candidate": c,
+                "similarity": ev["similarity"],
+                "decision": ev["decision"],
+                "reason": ev["reason"],
+                "face_count": ev["face_count"],
+                "best_face_index": ev["best_face_index"],
+                "matched_face_id": ev["matched_face_id"],
+                "candidate_faces_evaluated": ev["candidate_faces_evaluated"],
+                "det_confidence": ev["det_confidence"],
+                "image_quality": ev["image_quality"],
+                "thumbnail_sha256": h,
+            })
+
+    # Retain failed download candidates as UNRETRIEVABLE
+    for url, err in url_to_error.items():
+        for c in url_to_candidates[url]:
+            verified_results.append({
+                "candidate": c,
+                "similarity": 0.0,
+                "decision": "REJECTED",
+                "reason": f"UNRETRIEVABLE: {err}",
+                "face_count": 0,
+                "best_face_index": 0,
+                "matched_face_id": "UNRETRIEVABLE",
+                "candidate_faces_evaluated": [],
+                "det_confidence": 0.0,
+                "image_quality": 0.0,
+                "thumbnail_sha256": None,
+            })
+
+    # Retain candidates without thumbnails as UNRETRIEVABLE
+    for c in candidates_without_thumb:
+        verified_results.append({
+            "candidate": c,
+            "similarity": 0.0,
+            "decision": "REJECTED",
+            "reason": "UNRETRIEVABLE: Missing image thumbnail URL",
+            "face_count": 0,
+            "best_face_index": 0,
+            "matched_face_id": "NO IMAGE",
+            "candidate_faces_evaluated": [],
+            "det_confidence": 0.0,
+            "image_quality": 0.0,
+            "thumbnail_sha256": None,
+        })
+
+    # Retain any remaining candidates beyond max_candidates
+    for c in candidates[max_candidates:]:
+        verified_results.append({
+            "candidate": c,
+            "similarity": 0.0,
+            "decision": "REJECTED",
+            "reason": "EXCEEDED BUDGET: Candidate deferred past maximum evaluation limit",
+            "face_count": 0,
+            "best_face_index": 0,
+            "matched_face_id": "BUDGET LIMIT",
+            "candidate_faces_evaluated": [],
+            "det_confidence": 0.0,
+            "image_quality": 0.0,
+            "thumbnail_sha256": None,
+        })
+
+    usable_images_count = download_successful
+
+    telemetry = {
+        "download_attempted": download_attempted,
+        "download_successful": download_successful,
+        "download_failed": download_failed,
+        "download_time": round(total_download_time, 3),
+        "download_avg_latency": round(float(np.mean(download_latencies)) if download_latencies else 0.0, 3),
+        "unique_images_analyzed": len(hash_to_bytes),
+        "total_faces_analyzed": total_faces_analyzed,
+        "face_inference_time": round(face_inference_time, 3),
+        "candidates_evaluated": len(verified_results),
+        "usable_images_count": usable_images_count,
+    }
+
+    if return_telemetry:
+        return verified_results, usable_images_count, telemetry
     return verified_results, usable_images_count
 
 
@@ -362,16 +569,23 @@ def run_pipeline(
     # ---------------------------------------------------------
     print("\n[5/9] Independently evaluating candidate image thumbnails with ArcFace (Concurrent In-Memory)")
     t0 = time.perf_counter()
-    verified_results, usable_images_count = evaluate_candidates_concurrently(
+    eval_res = evaluate_candidates_concurrently(
         candidates,
         query_emb,
         verified_threshold,
         review_threshold,
         max_workers=8,
         query_multiview=query_analysis.get("multiview"),
+        return_telemetry=True,
     )
+    verified_results, usable_images_count, eval_telemetry = eval_res
     timings["5_cand_eval"] = time.perf_counter() - t0
-    print(f"      -> Evaluated {len(verified_results)} candidate faces across {usable_images_count} thumbnails in {timings['5_cand_eval']:.3f} s")
+    timings["5a_download"] = eval_telemetry["download_time"]
+    timings["5b_face_analysis"] = eval_telemetry["face_inference_time"]
+    print(f"      -> Concurrent Download  : {eval_telemetry['download_time']:.3f} s ({eval_telemetry['download_successful']}/{eval_telemetry['download_attempted']} successful)")
+    print(f"      -> Unique Images Analyzed: {eval_telemetry['unique_images_analyzed']} (Deduplicated from {usable_images_count} downloads)")
+    print(f"      -> Total Faces Evaluated: {eval_telemetry['total_faces_analyzed']} in {eval_telemetry['face_inference_time']:.3f} s")
+    print(f"      -> Total Candidates Evaluated: {len(verified_results)}")
 
     # ---------------------------------------------------------
     # [6/9] Candidate Ranking & Separation Margin Analysis
@@ -631,10 +845,12 @@ def run_pipeline(
         print(f"  Rejection Rationale   : {decision_reason}")
     if sep_margin is not None:
         print(f"  Separation Margin     : {sep_margin:.4f} ({margin_data.get('margin_interpretation', '')})")
-    print(f"  Total Measured Runtime: {total_latency:.2f} s")
-    print(f"  Stage Timings Breakdown:")
-    for k, v in sorted(timings.items()):
-        print(f"    - {k:<20}: {v:.3f} s ({v/total_latency*100:.1f}%)")
+    t_disc = timings.get("4_search_api", 0.0)
+    t_down = timings.get("5a_download", 0.0)
+    t_face = timings.get("5b_face_analysis", 0.0)
+    t_evid = timings.get("6_ranking", 0.0) + timings.get("7_manifest", 0.0)
+    print(f"\n  RUNTIME TELEMETRY:")
+    print(f"  DISCOVERY: {t_disc:.2f}s | DOWNLOAD: {t_down:.2f}s | FACE ANALYSIS: {t_face:.2f}s | EVIDENCE: {t_evid:.2f}s | TOTAL: {total_latency:.2f}s")
     print("=" * 70)
 
     return {
@@ -652,6 +868,7 @@ def run_pipeline(
         "separation_margin": sep_margin,
         "total_latency_seconds": total_latency,
         "stage_timings": timings,
+        "evaluation_telemetry": eval_telemetry,
     }
 
 

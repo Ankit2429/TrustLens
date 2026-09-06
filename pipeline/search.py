@@ -213,13 +213,23 @@ def _fetch_lens_search_mode(
     session: requests.Session,
     fresh_search: bool = False,
 ) -> dict[str, Any]:
-    """Execute real SerpApi Google Lens query for a specific search mode with pagination traversal."""
+    """Execute real SerpApi Google Lens query for a specific search mode with adaptive pagination traversal.
+
+    Optimizations:
+    - Independent concurrent execution per mode.
+    - Adaptive pagination: Halts if a continuation page yields zero new unique candidates or pagination ceases.
+    - Tracks new_unique_candidates_per_page for fine-grained discovery efficiency telemetry.
+    - Per-mode latency tracking.
+    """
     pages_scanned = 0
     raw_items: list[dict[str, Any]] = []
+    seen_mode_keys: set[str] = set()
+    new_unique_per_page: dict[int, int] = {}
     search_request_id: Optional[str] = None
     next_page_url: Optional[str] = None
     next_page_token: Optional[str] = None
-    t_start = int(time.time())
+    t_start = time.perf_counter()
+    epoch_start = int(time.time())
 
     for page_idx in range(1, max_pages + 1):
         if page_idx == 1:
@@ -273,6 +283,8 @@ def _fetch_lens_search_mode(
         if not search_request_id:
             search_request_id = data.get("search_metadata", {}).get("id")
 
+        items_before_page = len(raw_items)
+
         # Parse results according to genuine SerpApi schema for this mode
         if mode == "exact_matches":
             for em in data.get("exact_matches", []):
@@ -295,7 +307,7 @@ def _fetch_lens_search_mode(
                     "search_mode": "exact_matches",
                     "category": "exact_matches",
                     "page": page_idx,
-                    "discovery_timestamp": t_start,
+                    "discovery_timestamp": epoch_start,
                     "search_request_id": search_request_id,
                 })
 
@@ -320,7 +332,7 @@ def _fetch_lens_search_mode(
                     "search_mode": "visual_matches",
                     "category": "visual_matches",
                     "page": page_idx,
-                    "discovery_timestamp": t_start,
+                    "discovery_timestamp": epoch_start,
                     "search_request_id": search_request_id,
                 })
             # Also capture any inline reverse_image_search or images_results in this response
@@ -337,7 +349,7 @@ def _fetch_lens_search_mode(
                             "search_mode": "visual_matches",
                             "category": "reverse_image_search",
                             "page": page_idx,
-                            "discovery_timestamp": t_start,
+                            "discovery_timestamp": epoch_start,
                             "search_request_id": search_request_id,
                         })
             elif isinstance(ris_raw, dict) and ris_raw.get("inline_images"):
@@ -348,10 +360,11 @@ def _fetch_lens_search_mode(
                             "link": img_item.get("link", "").strip(),
                             "thumbnail": img_item.get("thumbnail", "").strip() or None,
                             "source": img_item.get("source", "").strip(),
+                            "snippet": img_item.get("snippet", "").strip(),
                             "search_mode": "visual_matches",
                             "category": "reverse_image_search",
                             "page": page_idx,
-                            "discovery_timestamp": t_start,
+                            "discovery_timestamp": epoch_start,
                             "search_request_id": search_request_id,
                         })
 
@@ -359,23 +372,39 @@ def _fetch_lens_search_mode(
             about_parsed = _parse_about_this_image_results(data)
             for item in about_parsed:
                 item["page"] = page_idx
-                item["discovery_timestamp"] = t_start
+                item["discovery_timestamp"] = epoch_start
                 item["search_request_id"] = search_request_id
                 raw_items.append(item)
 
-        # Check pagination continuation
+        # Track new unique candidates discovered on this page
+        new_on_page = 0
+        for item in raw_items[items_before_page:]:
+            item_key = item.get("link") or item.get("thumbnail") or ""
+            if item_key and item_key not in seen_mode_keys:
+                seen_mode_keys.add(item_key)
+                new_on_page += 1
+        new_unique_per_page[page_idx] = new_on_page
+
+        # Adaptive pagination rule: If continuation page yields 0 new candidates, stop pagination for this mode
+        if page_idx > 1 and new_on_page == 0:
+            break
+
+        # Check pagination continuation tokens
         pagination = data.get("serpapi_pagination", {})
         next_page_url = pagination.get("next")
         next_page_token = pagination.get("next_page_token")
         if not next_page_url and not next_page_token:
             break
 
+    duration_sec = round(time.perf_counter() - t_start, 3)
     return {
         "mode": mode,
         "items": raw_items,
         "pages_scanned": pages_scanned,
         "search_request_id": search_request_id,
-        "timestamp": t_start,
+        "timestamp": epoch_start,
+        "duration_seconds": duration_sec,
+        "new_unique_candidates_per_page": new_unique_per_page,
     }
 
 
@@ -425,6 +454,7 @@ def reverse_image_search(
     limit_expansions = max_expansions if max_expansions is not None else DEFAULT_SEARCH_MAX_SOURCE_EXPANSIONS
 
     req_start = int(time.time())
+    req_start_perf = time.perf_counter()
     session = requests.Session()
 
     modes = ["visual_matches", "exact_matches", "about_this_image"]
@@ -617,6 +647,13 @@ def reverse_image_search(
         "categories_scanned": sorted(list(categories_discovered)),
         "search_modes_queried": ["visual_matches", "exact_matches", "about_this_image"],
         "search_modes_active": sorted(list(active_modes)),
+        "mode_timings": {
+            m: results_by_mode.get(m, {}).get("duration_seconds", 0.0) for m in modes
+        },
+        "new_unique_candidates_per_page": {
+            m: results_by_mode.get(m, {}).get("new_unique_candidates_per_page", {}) for m in modes
+        },
+        "search_duration_seconds": round(time.perf_counter() - req_start_perf, 3),
         "exact_matches_count": exact_matches_count,
         "visual_matches_count": visual_matches_count,
         "about_image_count": about_image_count,
