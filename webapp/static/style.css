@@ -1077,6 +1077,13 @@ body.app-body {
 
 .gf-star {
   margin-left: auto;
+  font-family: var(--font-mono);
+  font-size: 9px;
+  letter-spacing: 0.1em;
+  color: var(--accent-verified);
+  font-weight: 700;
+}
+
 /* Discovery Complete Card (Requirement 19) */
 .discovery-complete-card {
   background-color: var(--surface-1);
@@ -1945,6 +1952,9 @@ body.app-body {
   font-family: var(--font-mono);
   font-size: 9px;
   letter-spacing: 0.15em;
+  color: var(--text-dim);
+}
+
 /* ==========================================================================
    Precision Facial Geometry Toolbar & EXIF Metadata Badge
    ========================================================================== */
