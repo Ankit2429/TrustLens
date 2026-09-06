@@ -4,6 +4,28 @@
  */
 
 document.addEventListener('DOMContentLoaded', () => {
+  function escapeHtml(str) {
+    if (!str) return '';
+    return String(str)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#039;');
+  }
+
+  function extractDomain(url) {
+    if (!url) return 'web';
+    try {
+      const parsed = new URL(url);
+      let host = parsed.hostname.toLowerCase();
+      if (host.startsWith('www.')) host = host.slice(4);
+      return host;
+    } catch (e) {
+      return 'web';
+    }
+  }
+
   // Navigation & Landing Elements
   const landingStage = document.getElementById('landingStage');
   const investigationWorkspace = document.getElementById('investigationWorkspace');
@@ -208,6 +230,36 @@ document.addEventListener('DOMContentLoaded', () => {
       handleFileSelected(e.target.files[0]);
     }
   });
+
+  // Sample portrait loader button & URL query auto-loader
+  const loadSamplePresetBtn = document.getElementById('loadSamplePresetBtn');
+  if (loadSamplePresetBtn) {
+    loadSamplePresetBtn.addEventListener('click', async (e) => {
+      e.stopPropagation();
+      try {
+        loadSamplePresetBtn.textContent = 'LOADING DEMO...';
+        loadSamplePresetBtn.disabled = true;
+        const res = await fetch('/api/demo-image');
+        if (!res.ok) throw new Error('Demo image fetch failed');
+        const blob = await res.blob();
+        const file = new File([blob], 'sample_face.jpg', { type: 'image/jpeg' });
+        await handleFileSelected(file);
+      } catch (err) {
+        console.error('Demo fetch failed:', err);
+        loadSamplePresetBtn.textContent = 'LOAD SAMPLE PORTRAIT';
+        loadSamplePresetBtn.disabled = false;
+      }
+    });
+  }
+
+  const urlParams = new URLSearchParams(window.location.search);
+  if (urlParams.get('sample') === 'true' || urlParams.get('demo') === 'true' || urlParams.get('demo') === '1') {
+    setTimeout(() => {
+      if (loadSamplePresetBtn && !loadSamplePresetBtn.disabled) {
+        loadSamplePresetBtn.click();
+      }
+    }, 300);
+  }
 
   // 3. File Processing & Transition to Photo-Centric Workspace
   async function handleFileSelected(file) {
@@ -686,15 +738,38 @@ document.addEventListener('DOMContentLoaded', () => {
     verdictBigScore.textContent = sim.toFixed(4);
     majorSimilarityScore.textContent = sim.toFixed(4);
 
-    // Right Column Match Card
+    // Strongest Match Card / Evidence Monolith Details
     resQualityVal.textContent = (best.quality || 0.85).toFixed(2);
     resConfidenceVal.textContent = (confidence.confidence_score || sim).toFixed(4);
     resMarginVal.textContent = summary.separation_margin !== null ? `+${summary.separation_margin.toFixed(4)}` : 'N/A';
 
     primaryMatchTitle.textContent = best.title || 'Discovered Web Identity';
-    primaryMatchLink.textContent = best.link || 'https://...';
+    primaryMatchLink.textContent = 'OPEN SOURCE ↗';
     primaryMatchLink.href = best.link || '#';
     primaryPlatformChip.textContent = (best.platform || 'General Web').toUpperCase();
+
+    const primaryMatchUrlText = document.getElementById('primaryMatchUrlText');
+    if (primaryMatchUrlText) {
+      primaryMatchUrlText.textContent = best.link || 'https://...';
+      primaryMatchUrlText.title = best.link || 'https://...';
+    }
+
+    const primaryDomainBadge = document.getElementById('primaryDomainBadge');
+    if (primaryDomainBadge) {
+      primaryDomainBadge.textContent = (best.domain || (best.link ? extractDomain(best.link) : 'web')).toUpperCase();
+    }
+
+    const resMatchedFaceId = document.getElementById('resMatchedFaceId');
+    if (resMatchedFaceId) {
+      resMatchedFaceId.textContent = best.matched_face_id || (best.face_count > 1 ? 'FACE 01' : 'SINGLE SUBJECT');
+    }
+
+    const resRelationshipVal = document.getElementById('resRelationshipVal');
+    if (resRelationshipVal) {
+      const cData = data.consensus_data || {};
+      const relType = best.decision === 'VERIFIED' ? 'CORROBORATING MATCH' : (cData.consensus_level || 'EVALUATED SOURCE');
+      resRelationshipVal.textContent = `${relType} · ${cData.total_supporting || 1} SUPPORTING SOURCE(S) ACROSS ${cData.domain_count || 1} DOMAIN(S)`;
+    }
 
     if (best.thumbnail) {
       primaryMatchThumb.src = best.thumbnail;
@@ -750,28 +825,62 @@ document.addEventListener('DOMContentLoaded', () => {
       refusalIpfsLink.href = data.manifest_cid ? `https://ipfs.io/ipfs/${data.manifest_cid}` : '#';
     }
 
-    // Render Candidates Strip
+    // Render Full Discovered Candidates Gallery (ALL Usable Candidates)
     const allCands = data.all_candidates || [];
     galleryCount.textContent = allCands.length;
     candidatesScrollStrip.innerHTML = '';
 
-    allCands.forEach((c) => {
+    allCands.forEach((c, idx) => {
       const card = document.createElement('div');
-      card.className = 'cand-card';
+      const isStrongest = (best.link && c.link === best.link) || idx === 0;
+      card.className = `cand-card ${isStrongest ? 'cand-card-winning' : ''}`;
       const tagClass = c.decision === 'VERIFIED' ? 'tag-verif' : c.decision === 'REVIEW' ? 'tag-rev' : 'tag-rej';
-      const groupBadge = c.face_count > 1 
-        ? `<span class="cand-group-badge">GROUP (${c.face_count}F · ${c.matched_face_id || 'MATCH'})</span>` 
-        : '';
+      const realUrl = c.link || '#';
+      const displayUrl = realUrl.length > 50 ? `${realUrl.slice(0, 48)}...` : realUrl;
+
+      // Group photo face breakdown inside candidate card
+      let groupFacesHtml = '';
+      if (c.face_count > 1 && c.candidate_faces_evaluated && c.candidate_faces_evaluated.length > 0) {
+        groupFacesHtml = `
+          <div class="cand-group-box">
+            <span class="cgb-header">GROUP PHOTO (${c.face_count} FACES DETECTED)</span>
+            <div class="cgb-faces-row">
+              ${c.candidate_faces_evaluated.map(cf => `
+                <span class="cgb-face-item ${cf.is_matched ? 'cgb-face-matched' : ''}">
+                  ${cf.face_id}: ${Number(cf.similarity).toFixed(2)} [${cf.decision}] ${cf.is_matched ? '★' : ''}
+                </span>
+              `).join('')}
+            </div>
+          </div>
+        `;
+      }
+
       card.innerHTML = `
         <div class="cand-img-wrap">
-          <img class="cand-img" src="${c.thumbnail || ''}" alt="Thumb" onerror="this.style.display='none'">
-          ${groupBadge}
+          <img class="cand-img" src="${c.thumbnail || ''}" alt="Thumbnail" onerror="this.style.display='none'">
+          ${isStrongest ? '<span class="cand-winning-badge">★ STRONGEST MATCH</span>' : ''}
+          ${c.face_count > 1 ? `<span class="cand-group-badge">GROUP (${c.face_count}F · ${c.matched_face_id || 'FACE 01'})</span>` : ''}
         </div>
-        <div class="cand-score-row">
-          <span class="cand-score">${Number(c.similarity).toFixed(3)}</span>
-          <span class="cand-tag ${tagClass}">${c.decision}</span>
+        <div class="cand-body">
+          <div class="cand-score-row">
+            <span class="cand-score">${Number(c.similarity).toFixed(3)}</span>
+            <span class="cand-tag ${tagClass}">${c.decision}</span>
+            <span class="cand-platform-tag">${escapeHtml(c.platform || c.domain || 'WEB')}</span>
+          </div>
+          <div class="cand-title" title="${escapeHtml(c.title || c.domain || 'Discovered Source')}">
+            ${escapeHtml(c.title || c.domain || 'Discovered Web Candidate')}
+          </div>
+          <div class="cand-source-row">
+            <span class="cand-source-label">SOURCE URL</span>
+            <a class="cand-source-url" href="${realUrl}" target="_blank" rel="noopener noreferrer" title="${escapeHtml(realUrl)}">
+              ${escapeHtml(displayUrl)}
+            </a>
+          </div>
+          ${groupFacesHtml}
+          <a class="cand-open-source-btn" href="${realUrl}" target="_blank" rel="noopener noreferrer">
+            OPEN SOURCE ↗
+          </a>
         </div>
-        <span class="cand-host">${c.platform || c.domain || 'web'}</span>
       `;
       candidatesScrollStrip.appendChild(card);
     });

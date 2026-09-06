@@ -66,9 +66,11 @@
             <p class="portal-action-sub">or click to browse local files</p>
             <p class="portal-manifesto">Analyze a face and discover its indexed web evidence.</p>
             <span class="portal-policy-note">PUBLIC INDEXED CONTENT ONLY</span>
+            <button type="button" class="portal-preset-btn" id="loadSamplePresetBtn">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polygon points="10 8 16 12 10 16 10 8"/></svg>
+              LOAD SAMPLE PORTRAIT
+            </button>
           </div>
-        </div>
-
         </div>
       </div>
     </section>
@@ -303,45 +305,6 @@
             </div>
           </div>
 
-          <!-- Top Match Card -->
-          <div class="top-match-card" id="topMatchCard">
-            <div class="match-card-kicker">TOP MATCH</div>
-            <div class="match-thumb-preview">
-              <img id="primaryMatchThumb" src="" alt="Candidate" class="match-img" onerror="this.style.display='none'">
-              <span class="match-platform-tag" id="primaryPlatformChip">GENERAL WEB</span>
-            </div>
-            <div class="match-details-body">
-              <h4 class="match-title" id="primaryMatchTitle">Awaiting Investigation...</h4>
-              <a class="match-url" id="primaryMatchLink" href="#" target="_blank" rel="noopener noreferrer">https://...</a>
-              
-              <div class="match-metrics-list">
-                <div class="mm-row">
-                  <span class="mm-key">SIMILARITY:</span>
-                  <span class="mm-val highlight-metric" id="majorSimilarityScore">--</span>
-                </div>
-                <div class="mm-row">
-                  <span class="mm-key">QUALITY:</span>
-                  <span class="mm-val" id="resQualityVal">--</span>
-                </div>
-                <div class="mm-row">
-                  <span class="mm-key">CONFIDENCE:</span>
-                  <span class="mm-val" id="resConfidenceVal">--</span>
-                </div>
-                <div class="mm-row">
-                  <span class="mm-key">SEPARATION:</span>
-                  <span class="mm-val" id="resMarginVal">--</span>
-                </div>
-                <div class="mm-row">
-                  <span class="mm-key">DECISION:</span>
-                  <span class="mm-val tag-decision" id="similarityBadge">--</span>
-                </div>
-              </div>
-
-              <!-- Candidate Group Photo Breakdown -->
-              <div class="primary-group-breakdown" id="primaryGroupBreakdown" style="display:none"></div>
-            </div>
-          </div>
-
           <!-- Final Search Summary (Requirement 19) -->
           <div class="discovery-complete-card" id="discoveryCompleteCard" style="display:none">
             <div class="dc-header">
@@ -386,25 +349,126 @@
       <!-- 3. VERDICT & EVIDENCE / PROOF MONOLITH -->
       <div class="result-evidence-deck" id="resultShowcaseSection" style="display:none">
         
-        <!-- Large Clear Verdict Banner -->
-        <div class="verdict-banner" id="verdictBannerWrap">
-          <div class="verdict-banner-inner">
-            <div class="verdict-title-group">
-              <span class="verdict-status-kicker" id="verdictTag">VERIFICATION RESULT</span>
-              <h2 class="verdict-headline" id="verdictHeadline">VERIFIED</h2>
-              <p class="verdict-subtext" id="verdictSubReason">Face similarity exceeds verified threshold with clear candidate quality differentiation.</p>
+        <!-- 3. DISCOVERED CANDIDATE IMAGES GALLERY -->
+        <div class="candidates-correlations-section" id="candidatesGallerySection">
+          <div class="gallery-header-bar">
+            <div class="gh-left">
+              <span class="gh-kicker">03 // DISCOVERY RESULTS</span>
+              <h3 class="gallery-header-title">DISCOVERED CANDIDATE IMAGES (<span id="galleryCount">0</span>)</h3>
             </div>
-            <div class="verdict-score-box">
-              <span class="v-score-label">ARCFACE SIMILARITY</span>
-              <span class="v-score-num" id="verdictBigScore">0.8670</span>
-              <span class="v-score-desc" id="verdictScoreDesc">Strong match</span>
+            <span class="gallery-header-sub">ALL USABLE CANDIDATES EVALUATED ACROSS ALL DETECTED FACES</span>
+          </div>
+          <div class="candidates-cards-grid" id="candidatesScrollStrip"></div>
+        </div>
+
+        <!-- 4. STRONGEST CANDIDATE / MATCH -->
+        <div class="strongest-candidate-section" id="strongestCandidateSection">
+          <div class="gallery-header-bar">
+            <div class="gh-left">
+              <span class="gh-kicker">04 // MATCH ANALYSIS</span>
+              <h3 class="gallery-header-title">STRONGEST CANDIDATE EVIDENCE</h3>
+            </div>
+            <span class="gallery-header-sub" id="scRankBadge">RANK #1 EVALUATED MATCH</span>
+          </div>
+
+          <div class="strongest-match-card-monolith" id="topMatchCard">
+            <div class="smc-visual-col">
+              <div class="smc-thumb-wrap">
+                <img id="primaryMatchThumb" src="" alt="Candidate" class="smc-img" onerror="this.style.display='none'">
+                <span class="smc-platform-chip" id="primaryPlatformChip">GENERAL WEB</span>
+                <span class="smc-winning-star">★ STRONGEST MATCH</span>
+              </div>
+            </div>
+            <div class="smc-content-col">
+              <div class="smc-title-row">
+                <h4 class="smc-title" id="primaryMatchTitle">Awaiting Investigation...</h4>
+              </div>
+
+              <!-- Prominent Source Block (Requirement) -->
+              <div class="smc-source-block">
+                <div class="smc-source-header">
+                  <span class="smc-source-label">SOURCE</span>
+                  <span class="smc-domain-badge" id="primaryDomainBadge">--</span>
+                </div>
+                <div class="smc-url-display" id="primaryMatchUrlText" title="Source URL">https://...</div>
+                <a class="btn-open-source-prominent" id="primaryMatchLink" href="#" target="_blank" rel="noopener noreferrer">
+                  OPEN SOURCE ↗
+                </a>
+              </div>
+
+              <div class="smc-metrics-grid">
+                <div class="smc-m-cell">
+                  <span class="smc-m-k">ARCFACE SIMILARITY</span>
+                  <span class="smc-m-v highlight-metric" id="majorSimilarityScore">--</span>
+                </div>
+                <div class="smc-m-cell">
+                  <span class="smc-m-k">IMAGE QUALITY</span>
+                  <span class="smc-m-v" id="resQualityVal">--</span>
+                </div>
+                <div class="smc-m-cell">
+                  <span class="smc-m-k">DYNAMIC CONFIDENCE</span>
+                  <span class="smc-m-v" id="resConfidenceVal">--</span>
+                </div>
+                <div class="smc-m-cell">
+                  <span class="smc-m-k">SEPARATION MARGIN</span>
+                  <span class="smc-m-v" id="resMarginVal">--</span>
+                </div>
+                <div class="smc-m-cell">
+                  <span class="smc-m-k">MATCHED FACE ID</span>
+                  <span class="smc-m-v" id="resMatchedFaceId">FACE 01</span>
+                </div>
+                <div class="smc-m-cell">
+                  <span class="smc-m-k">DECISION</span>
+                  <span class="smc-m-v tag-decision" id="similarityBadge">--</span>
+                </div>
+                <div class="smc-m-cell full-width">
+                  <span class="smc-m-k">RELATIONSHIP & CONSENSUS</span>
+                  <span class="smc-m-v" id="resRelationshipVal">--</span>
+                </div>
+              </div>
+
+              <!-- Candidate Group Photo Breakdown -->
+              <div class="primary-group-breakdown" id="primaryGroupBreakdown" style="display:none"></div>
             </div>
           </div>
         </div>
 
-        <!-- Evidence & Blockchain Proof Section -->
-        <div class="proof-anchor-section">
-          
+        <!-- 5. FINAL BIOMETRIC VERDICT -->
+        <div class="verdict-section" id="verdictSection">
+          <div class="verdict-banner" id="verdictBannerWrap">
+            <div class="verdict-banner-inner">
+              <div class="verdict-title-group">
+                <span class="verdict-status-kicker" id="verdictTag">05 // FINAL BIOMETRIC VERDICT</span>
+                <h2 class="verdict-headline" id="verdictHeadline">VERIFIED</h2>
+                <p class="verdict-subtext" id="verdictSubReason">Face similarity exceeds verified threshold with clear candidate quality differentiation.</p>
+              </div>
+              <div class="verdict-score-box">
+                <span class="v-score-label">ARCFACE SIMILARITY</span>
+                <span class="v-score-num" id="verdictBigScore">0.8670</span>
+                <span class="v-score-desc" id="verdictScoreDesc">Strong match</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 6. EVIDENCE & CONSENSUS (Source Relationship Graph) -->
+        <div class="source-graph-section" id="sourceGraphSection" style="display:none">
+          <div class="gallery-header-bar">
+            <div class="gh-left">
+              <span class="gh-kicker">06 // EVIDENCE & CONSENSUS</span>
+              <h3 class="gallery-header-title">SOURCE RELATIONSHIP GRAPH & CONSENSUS (<span id="sgNodeCount">0</span> SOURCES)</h3>
+            </div>
+            <span class="gallery-header-sub" id="sgConsensusSummary">0 DOMAINS · NO CONSENSUS</span>
+          </div>
+          <div class="source-graph-matrix" id="sourceGraphMatrix"></div>
+        </div>
+
+        <!-- 7. BLOCKCHAIN PROOF ANCHOR -->
+        <div class="proof-anchor-section" id="proofAnchorSection">
+          <div class="p-section-header">
+            <span class="p-section-kicker">07 // LEDGER EVIDENCE</span>
+            <h3 class="p-section-title">BLOCKCHAIN PROOF ANCHOR</h3>
+          </div>
           <!-- On-Chain Proof Monolith (For VERIFIED) -->
           <div class="proof-container-card" id="blockchainProofCard">
             <div class="proof-card-header">
@@ -475,24 +539,6 @@
             </div>
           </div>
 
-        </div>
-
-        <!-- Source Relationship Graph & Cross-Source Consensus Deck -->
-        <div class="source-graph-section" id="sourceGraphSection" style="display:none">
-          <div class="gallery-header-bar">
-            <span class="gallery-header-title">SOURCE RELATIONSHIP GRAPH & CONSENSUS (<span id="sgNodeCount">0</span> SOURCES)</span>
-            <span class="gallery-header-sub" id="sgConsensusSummary">0 DOMAINS · NO CONSENSUS</span>
-          </div>
-          <div class="source-graph-matrix" id="sourceGraphMatrix"></div>
-        </div>
-
-        <!-- Compact Supporting Candidate Cards Gallery -->
-        <div class="candidates-correlations-section" id="candidatesGallerySection">
-          <div class="gallery-header-bar">
-            <span class="gallery-header-title">INDEXED CANDIDATE CORRELATIONS (<span id="galleryCount">0</span>)</span>
-            <span class="gallery-header-sub">RANKED DETERMINISTICALLY BY ARCFACE SIMILARITY</span>
-          </div>
-          <div class="candidates-cards-strip" id="candidatesScrollStrip"></div>
         </div>
 
         <!-- Interactive Cryptographic Tamper Demonstration -->
