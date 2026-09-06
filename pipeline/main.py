@@ -464,6 +464,19 @@ def run_pipeline(
     print(f"         * Visually Related Imgs: {relationship_graph['counts']['visually_related_image']}")
     print(f"         * Different Individuals: {relationship_graph['counts']['different_person']}")
 
+    # Final Search Summary (Requirement 19)
+    print("\n" + "=" * 60)
+    print("  DISCOVERY COMPLETE")
+    print("=" * 60)
+    print(f"  Search modes            : {', '.join(search_telemetry.get('search_modes_active', ['visual_matches']))}")
+    print(f"  Result sets             : {search_telemetry.get('pages_scanned', 1)}")
+    print(f"  Unique sources          : {len(consensus_data.get('distinct_domains', []))}")
+    print(f"  Candidate images        : {usable_images_count}")
+    print(f"  Faces analyzed          : {len(verified_results)}")
+    print(f"  Strongest verified match: {similarity_score:.4f} [{decision}] ({matched_candidate.get('title', 'Discovered Web Identity')})")
+    print(f"  Supporting sources      : {consensus_data.get('total_supporting', 0)}")
+    print("=" * 60)
+
     # ---------------------------------------------------------
     # [7/9] Canonical Evidence Manifest Generation (RFC-8785)
     # ---------------------------------------------------------

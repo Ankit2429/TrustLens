@@ -1077,11 +1077,68 @@ body.app-body {
 
 .gf-star {
   margin-left: auto;
+/* Discovery Complete Card (Requirement 19) */
+.discovery-complete-card {
+  background-color: var(--surface-1);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.dc-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.dc-kicker {
   font-family: var(--font-mono);
-  font-size: 9px;
+  font-size: 10px;
+  letter-spacing: 0.18em;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.dc-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background-color: var(--accent-verified);
+  box-shadow: 0 0 6px var(--accent-verified);
+}
+
+.dc-metrics-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  border-top: 1px solid var(--border-subtle);
+  padding-top: 10px;
+}
+
+.dc-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-family: var(--font-mono);
+  font-size: 10px;
+}
+
+.dc-k {
+  color: var(--text-muted);
   letter-spacing: 0.1em;
+}
+
+.dc-v {
+  color: var(--text-primary);
+  font-weight: 500;
+}
+
+.dc-v.highlight-metric {
   color: var(--accent-verified);
-  font-weight: 700;
+  font-weight: 600;
 }
 
 .cand-img-wrap {

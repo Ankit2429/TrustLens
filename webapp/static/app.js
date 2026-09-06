@@ -604,6 +604,36 @@ document.addEventListener('DOMContentLoaded', () => {
       }
     }
 
+    // Final Search Summary Monolith (Requirement 19)
+    const discoveryCompleteCard = document.getElementById('discoveryCompleteCard');
+    const dcSearchModes = document.getElementById('dcSearchModes');
+    const dcResultSets = document.getElementById('dcResultSets');
+    const dcUniqueSources = document.getElementById('dcUniqueSources');
+    const dcCandidateImages = document.getElementById('dcCandidateImages');
+    const dcFacesAnalyzed = document.getElementById('dcFacesAnalyzed');
+    const dcStrongestMatch = document.getElementById('dcStrongestMatch');
+    const dcSupportingSources = document.getElementById('dcSupportingSources');
+
+    if (discoveryCompleteCard) {
+      discoveryCompleteCard.style.display = 'flex';
+      if (dcSearchModes) {
+        const modes = (dhud.search_modes_active && dhud.search_modes_active.length > 0) 
+          ? dhud.search_modes_active.join(', ') 
+          : 'visual_matches';
+        dcSearchModes.textContent = modes;
+      }
+      if (dcResultSets) dcResultSets.textContent = dhud.pages_scanned || pagesScanned || 1;
+      if (dcUniqueSources) dcUniqueSources.textContent = dhud.unique_sources || (data.consensus_data ? data.consensus_data.domain_count : 0);
+      if (dcCandidateImages) dcCandidateImages.textContent = totalFound || 0;
+      if (dcFacesAnalyzed) dcFacesAnalyzed.textContent = dhud.candidate_faces_evaluated || facesAnalyzed || 0;
+      if (dcStrongestMatch) {
+        dcStrongestMatch.textContent = `${sim.toFixed(4)} [${decision}]`;
+      }
+      if (dcSupportingSources) {
+        dcSupportingSources.textContent = data.consensus_data ? data.consensus_data.total_supporting : 0;
+      }
+    }
+
     // Dynamic Platform Illumination based on ACTUAL returned platforms
     const tags = discoveredPlatformsStrip.querySelectorAll('.platform-tag');
     const platformsFound = new Set();
